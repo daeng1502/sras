@@ -1,11 +1,34 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const readline = require('readline');
+const fs = require('fs');
 const config = require('./config');
 const parser = require('./services/parser');
 const registrator = require('./services/registrator');
 const verification = require('./services/verification');
 const historyLogger = require('./services/history');
+
+/**
+ * Mendeteksi lokasi Chromium secara otomatis di lingkungan Android Termux
+ */
+function getTermuxChromiumPath() {
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        return process.env.PUPPETEER_EXECUTABLE_PATH;
+    }
+    
+    // Path standar Chromium di Android Termux
+    const termuxChromiumPath = '/data/data/com.termux/files/usr/bin/chromium';
+    if (fs.existsSync(termuxChromiumPath)) {
+        return termuxChromiumPath;
+    }
+    
+    return undefined;
+}
+
+const chromiumPath = getTermuxChromiumPath();
+if (chromiumPath) {
+    console.log(`[SYSTEM] Terdeteksi Chromium Termux di: "${chromiumPath}"`);
+}
 
 // Inisialisasi WhatsApp Client dengan autentikasi lokal & remote cache version
 const client = new Client({
@@ -18,7 +41,7 @@ const client = new Client({
         remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
     },
     puppeteer: {
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        executablePath: chromiumPath,
         headless: true,
         args: [
             '--no-sandbox',
