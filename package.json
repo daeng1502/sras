@@ -1,0 +1,19 @@
+{
+  "name": "sras",
+  "version": "1.0.0",
+  "description": "Shift Registration Automation System",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.25.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

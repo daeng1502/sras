@@ -1,0 +1,19 @@
+# Dependensi Node.js
+node_modules/
+
+# Token & Sesi Login Lokal WhatsApp Web (Sangat penting agar tidak bocor)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Konfigurasi Sensitif Lingkungan Lokal (Berisi Nomor HP, Nama, & OPT ID)
+.env
+.env.local
+
+# Log Aktivitas & Database Lokal (Agar status login tidak bertabrakan)
+src/database/history.log
+src/database/store.json
+npm-debug.log*
+
+# File Sistem Operasi
+.DS_Store
+Thumbs.db
