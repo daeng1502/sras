@@ -35,7 +35,7 @@ describe('Registrator Service Tests', () => {
         expect(result.replyText).toBeNull();
     });
 
-    test('harus menolak pendaftaran jika nama pengguna sudah ada dalam daftar pesan (BR-007)', () => {
+    test('harus sukses bertransisi ke WAITING_VERIFICATION jika nama pengguna sudah ada dalam daftar pesan (BR-007)', () => {
         eligibility.checkEligibility.mockReturnValue({
             eligible: true,
             reason: 'Eligible'
@@ -44,8 +44,8 @@ describe('Registrator Service Tests', () => {
         const incomingText = `List Shift Pagi:\n1. Budi Santoso - OPT-9982\n2.`;
         const result = registrator.processRegistration(incomingText);
 
-        expect(result.success).toBe(false);
-        expect(result.message).toContain('BR-007');
+        expect(result.success).toBe(true);
+        expect(result.message).toContain('sudah terdaftar');
         expect(result.replyText).toBeNull();
     });
 

@@ -260,6 +260,11 @@ client.on('message', async (msg) => {
             if (regResult.success) {
                 console.log(`[SUKSES] ${regResult.message}`);
                 
+                if (!regResult.replyText) {
+                    console.log('[INFO] Nama Anda sudah terdaftar sebelumnya di list. Melewati pengiriman pendaftaran.');
+                    return;
+                }
+
                 try {
                     // Pemicu status "Sedang Mengetik..." di grup WA secara instan untuk kamuflase alami
                     const chat = await msg.getChat();

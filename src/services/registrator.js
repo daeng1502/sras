@@ -28,9 +28,16 @@ function processRegistration(incomingMessageText) {
         config.userOptId
     );
     if (alreadyRegistered) {
+        const shiftTitle = parser.extractShiftTitle(incomingMessageText);
+        const todayStr = new Date().toISOString().split('T')[0];
+        storeManager.updateStatus('WAITING_VERIFICATION', shiftTitle, todayStr);
+        
+        alarm.triggerAlarm('REGISTER', shiftTitle);
+        historyLogger.logEvent('REGISTER', `Nama sudah terdaftar pada shift "${shiftTitle}". Masuk ke status WAITING_VERIFICATION.`);
+
         return {
-            success: false,
-            message: 'BR-007: Nama atau OPT ID pengguna sudah terdaftar di dalam list chat grup ini.',
+            success: true,
+            message: 'Nama atau OPT ID Anda sudah terdaftar di dalam list chat grup ini. Mengaktifkan pemantauan verifikasi.',
             replyText: null
         };
     }
