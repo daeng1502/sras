@@ -175,18 +175,32 @@ client.on('message', async (msg) => {
             return adminNumber === senderNumber;
         });
 
+        // CETAK LOG PEMBANTU DIAGNOSTIK
+        if (isFromMonitoredAdmin) {
+            console.log(`[DIAGNOSTIK] Pengirim cocok sebagai Admin yang dipantau! (${senderId})`);
+        } else {
+            const isPotentialShift = parser.isShiftOpening(msg.body);
+            if (isPotentialShift) {
+                console.log(`[DIAGNOSTIK] Deteksi pesan pembukaan shift, tapi diabaikan karena pengirim (${senderId}) tidak terdaftar di daftar MONITORED_ADMINS.`);
+            }
+        }
+
         // 3. Deteksi otomatis Target Group JID jika belum teridentifikasi
         if (isFromMonitoredAdmin && !targetGroupJid) {
             const isOpening = parser.isShiftOpening(msg.body);
             const isVerify = verification.isVerificationMessage(msg.body);
 
             if (isOpening || isVerify) {
+                console.log(`[DIAGNOSTIK] Admin mengirim pesan format shift/verifikasi. Mencoba mengunci targetGroupJid...`);
                 try {
                     // Validasi nama grup secara online
                     const chat = await msg.getChat();
+                    console.log(`[DIAGNOSTIK] Nama grup asli: "${chat.name}" | Target filter: "${config.targetGroupName}"`);
                     if (chat.isGroup && chat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
                         targetGroupJid = msg.from;
                         console.log(`[SYSTEM] Target grup terdeteksi secara otomatis dan terverifikasi! JID: "${targetGroupJid}"`);
+                    } else {
+                        console.log(`[DIAGNOSTIK] Grup diabaikan karena nama grup "${chat.name}" tidak cocok dengan kriteria "${config.targetGroupName}".`);
                     }
                 } catch (err) {
                     // Fallback jika getChat() gagal karena error 'r' CDP:
@@ -199,6 +213,9 @@ client.on('message', async (msg) => {
 
         // Pastikan pesan berasal dari grup target yang sudah terdeteksi
         if (!targetGroupJid || msg.from !== targetGroupJid) {
+            if (isFromMonitoredAdmin && parser.isShiftOpening(msg.body)) {
+                console.log(`[DIAGNOSTIK] Pesan shift diabaikan karena targetGroupJid belum terkunci atau berbeda (targetGroupJid saat ini: ${targetGroupJid || 'belum terkunci'}).`);
+            }
             return;
         }
 
