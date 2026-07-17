@@ -103,10 +103,34 @@ let targetGroupJid = null;
 const groupMessageCache = {};
 
 // Event ketika client siap menerima pesan
-client.on('ready', () => {
-    console.log('[READY] WhatsApp Client siap dan aktif!');
-    console.log(`[SYSTEM] Menunggu pesan lowongan dari Admin di grup target "${config.targetGroupName}"...`);
-    historyLogger.logEvent('SYSTEM', 'Bot dimulai dan siap memantau grup.');
+client.on('ready', async () => {
+    console.log('\n[READY] WhatsApp Client siap dan aktif!');
+    historyLogger.logEvent('SYSTEM', 'Bot terhubung dan siap.');
+
+    console.log('\n==================================================');
+    console.log('          MEMULAI MONITORING SHIFT');
+    console.log('==================================================');
+    console.log(`Pengguna: ${config.userName} (${config.userOptId})`);
+    console.log(`Grup Target: ${config.targetGroupName}`);
+    const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
+    console.log(`Daftar Admin: ${adminsString}`);
+
+    const answer = await askQuestion('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ');
+    const inputKeywords = answer.trim()
+        .split(',')
+        .map(kw => kw.trim().toLowerCase())
+        .filter(kw => kw.length > 0);
+
+    if (inputKeywords.length > 0) {
+        config.targetShiftKeywords = inputKeywords;
+        console.log(`[INFO] Bot dikonfigurasi untuk HANYA menargetkan shift dengan kata kunci: "${inputKeywords.join(', ')}"`);
+    } else {
+        config.targetShiftKeywords = [];
+        console.log('[INFO] Bot dikonfigurasi untuk memantau SEMUA shift (Tanpa filter spesifik).');
+    }
+
+    console.log(`\n[SYSTEM] Menunggu pesan lowongan dari Admin di grup target "${config.targetGroupName}"...`);
+    historyLogger.logEvent('SYSTEM', 'Bot mulai memantau grup.');
 });
 
 // Mendengarkan pesan masuk
@@ -431,27 +455,6 @@ async function startSystem() {
             if (!config.userName || !config.userOptId || !config.targetGroupName || config.monitoredAdmins.length === 0) {
                 console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Anda terlebih dahulu di Menu 2.');
                 continue;
-            }
-
-            console.log('\n==================================================');
-            console.log('          MEMULAI MONITORING SHIFT');
-            console.log('==================================================');
-            console.log(`Pengguna: ${config.userName} (${config.userOptId})`);
-            console.log(`Grup Target: ${config.targetGroupName}`);
-            console.log(`Daftar Admin: ${config.monitoredAdmins.join(', ')}`);
-
-            const answer = await askQuestion('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ');
-            const inputKeywords = answer.trim()
-                .split(',')
-                .map(kw => kw.trim().toLowerCase())
-                .filter(kw => kw.length > 0);
-
-            if (inputKeywords.length > 0) {
-                config.targetShiftKeywords = inputKeywords;
-                console.log(`[INFO] Bot dikonfigurasi untuk HANYA menargetkan shift dengan kata kunci: "${inputKeywords.join(', ')}"`);
-            } else {
-                config.targetShiftKeywords = [];
-                console.log('[INFO] Bot dikonfigurasi untuk memantau SEMUA shift (Tanpa filter spesifik).');
             }
 
             console.log('\n[SYSTEM] Menginisialisasi koneksi WhatsApp Web...');
