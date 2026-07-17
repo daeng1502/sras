@@ -283,32 +283,41 @@ function saveToEnv(key, value) {
         envContent = fs.readFileSync(envPath, 'utf8');
     }
 
+    // Pembersihan nomor HP agar fleksibel (bisa 08 atau 628)
+    let processedValue = value;
+    if (key === 'USER_HP') {
+        processedValue = processedValue.replace(/[^0-9]/g, '');
+        if (processedValue.startsWith('0')) {
+            processedValue = '62' + processedValue.slice(1);
+        }
+    }
+
     const lines = envContent.split('\n');
     let found = false;
 
     for (let i = 0; i < lines.length; i++) {
         const trimmed = lines[i].trim();
         if (trimmed.startsWith(`${key}=`)) {
-            lines[i] = `${key}="${value}"`;
+            lines[i] = `${key}="${processedValue}"`;
             found = true;
             break;
         }
     }
 
     if (!found) {
-        lines.push(`${key}="${value}"`);
+        lines.push(`${key}="${processedValue}"`);
     }
 
     fs.writeFileSync(envPath, lines.join('\n'), 'utf8');
     
     // Sinkronisasi nilai ke variabel RAM konfigurasi secara instan
-    if (key === 'USER_NAME') config.userName = value;
-    else if (key === 'USER_OPT_ID') config.userOptId = value;
-    else if (key === 'USER_HP') config.userHp = value;
-    else if (key === 'TARGET_GROUP_NAME') config.targetGroupName = value;
-    else if (key === 'NTFY_TOPIC') config.ntfyTopic = value;
+    if (key === 'USER_NAME') config.userName = processedValue;
+    else if (key === 'USER_OPT_ID') config.userOptId = processedValue;
+    else if (key === 'USER_HP') config.userHp = processedValue;
+    else if (key === 'TARGET_GROUP_NAME') config.targetGroupName = processedValue;
+    else if (key === 'NTFY_TOPIC') config.ntfyTopic = processedValue;
     else if (key === 'MONITORED_ADMINS') {
-        config.monitoredAdmins = value
+        config.monitoredAdmins = processedValue
             .split(',')
             .map(admin => admin.trim())
             .filter(admin => admin.length > 0)
