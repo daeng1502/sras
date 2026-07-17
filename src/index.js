@@ -110,11 +110,26 @@ let targetGroupAdmins = []; // Daftar admin grup target yang dimuat secara otoma
  */
 async function refreshGroupAdmins(chat) {
     try {
-        if (chat.isGroup && chat.participants) {
-            targetGroupAdmins = chat.participants
+        let activeChat = chat;
+        
+        // Ambil ulang chat lengkap dari server WA jika data peserta kosong (CDP cache issue)
+        if (!activeChat.participants || activeChat.participants.length === 0) {
+            console.log('[DIAGNOSTIK] Meminta ulang data detail grup dari server WhatsApp...');
+            activeChat = await client.getChatById(chat.id._serialized);
+        }
+
+        if (activeChat.isGroup && activeChat.participants) {
+            console.log(`[DIAGNOSTIK] Jumlah total anggota di grup target: ${activeChat.participants.length}`);
+            targetGroupAdmins = activeChat.participants
                 .filter(p => p.isAdmin || p.isSuperAdmin)
                 .map(p => p.id._serialized);
+            
             console.log(`[SYSTEM] Berhasil memperbarui daftar admin grup target secara otomatis. Ditemukan ${targetGroupAdmins.length} admin.`);
+            
+            const sampleAdmins = targetGroupAdmins.map(a => a.split('@')[0]);
+            console.log(`[DIAGNOSTIK] Daftar JID Admin terdeteksi: [${sampleAdmins.join(', ')}]`);
+        } else {
+            console.log('[DIAGNOSTIK] Gagal membaca list participants grup target (Bernilai kosong/undefined).');
         }
     } catch (err) {
         console.error('[ERROR] Gagal memperbarui daftar admin grup target:', err.message);
