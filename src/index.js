@@ -115,8 +115,13 @@ async function refreshGroupAdmins(chatId) {
 
         if (activeChat.isGroup && activeChat.participants) {
             console.log(`[DIAGNOSTIK] Jumlah total anggota di grup target: ${activeChat.participants.length}`);
+            
+            if (activeChat.participants.length > 0) {
+                console.log(`[DIAGNOSTIK] Raw data peserta pertama: ${JSON.stringify(activeChat.participants[0])}`);
+            }
+
             targetGroupAdmins = activeChat.participants
-                .filter(p => p.isAdmin || p.isSuperAdmin)
+                .filter(p => p.isAdmin || p.isSuperAdmin || p.role === 'admin' || p.role === 'creator')
                 .map(p => p.id._serialized);
             
             console.log(`[SYSTEM] Berhasil memperbarui daftar admin grup target secara otomatis. Ditemukan ${targetGroupAdmins.length} admin.`);
