@@ -106,17 +106,12 @@ let isAutoSendEnabled = true;
 let targetGroupAdmins = []; // Daftar admin grup target yang dimuat secara otomatis dari WhatsApp
 
 /**
- * Memperbarui daftar admin grup target dari data peserta obrolan secara dinamis
+ * Memperbarui daftar admin grup target dari data peserta obrolan secara dinamis langsung dari server WhatsApp
  */
-async function refreshGroupAdmins(chat) {
+async function refreshGroupAdmins(chatId) {
     try {
-        let activeChat = chat;
-        
-        // Ambil ulang chat lengkap dari server WA jika data peserta kosong (CDP cache issue)
-        if (!activeChat.participants || activeChat.participants.length === 0) {
-            console.log('[DIAGNOSTIK] Meminta ulang data detail grup dari server WhatsApp...');
-            activeChat = await client.getChatById(chat.id._serialized);
-        }
+        console.log('[DIAGNOSTIK] Meminta data detail grup segar langsung dari server WhatsApp...');
+        const activeChat = await client.getChatById(chatId);
 
         if (activeChat.isGroup && activeChat.participants) {
             console.log(`[DIAGNOSTIK] Jumlah total anggota di grup target: ${activeChat.participants.length}`);
@@ -206,7 +201,7 @@ client.on('message', async (msg) => {
                 if (chat.isGroup && chat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
                     targetGroupJid = msg.from;
                     console.log(`[SYSTEM] Target grup terdeteksi secara otomatis dan terverifikasi! JID: "${targetGroupJid}"`);
-                    await refreshGroupAdmins(chat);
+                    await refreshGroupAdmins(msg.from);
                 }
             } catch (err) {
                 // Abaikan jika getChat gagal di awal
@@ -216,8 +211,7 @@ client.on('message', async (msg) => {
         // Jika JID sudah terkunci tetapi admin list masih kosong, muat ulang admin list
         if (msg.from === targetGroupJid && targetGroupAdmins.length === 0) {
             try {
-                const chat = await msg.getChat();
-                await refreshGroupAdmins(chat);
+                await refreshGroupAdmins(msg.from);
             } catch (err) {}
         }
 
