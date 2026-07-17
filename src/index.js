@@ -410,6 +410,7 @@ function logoutWhatsApp() {
  */
 async function showConfigMenu() {
     while (true) {
+        console.clear();
         console.log('\n==================================================');
         console.log('              SUB-MENU PENGATURAN BOT');
         console.log('==================================================');
@@ -455,12 +456,14 @@ async function showConfigMenu() {
                 break;
             default:
                 console.log('[ERROR] Pilihan tidak valid.');
+                await askQuestion('\nTekan ENTER untuk melanjutkan...');
                 continue;
         }
 
         const newValue = await askQuestion(promptText);
         saveToEnv(key, newValue.trim());
         console.log(`\n[SUKSES] Konfigurasi ${key} berhasil diperbarui.`);
+        await askQuestion('\nTekan ENTER untuk kembali ke Sub-Menu...');
     }
 }
 
@@ -469,6 +472,7 @@ async function showConfigMenu() {
  */
 async function startSystem() {
     while (true) {
+        console.clear();
         console.log('\n==================================================');
         console.log('        MENU UTAMA BOT REGISTRASI SHIFT (SRAS)');
         console.log('==================================================');
@@ -487,24 +491,29 @@ async function startSystem() {
             process.exit(0);
         } else if (trimmed === '4') {
             logoutWhatsApp();
+            await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
         } else if (trimmed === '3') {
             storeManager.writeStore(storeManager.defaultStore);
             console.log('\n[SUKSES] Status pendaftaran hari ini berhasil di-reset menjadi NULL.');
             console.log('[INFO] Anda sekarang dapat melakukan simulasi pendaftaran ulang hari ini.');
+            await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
         } else if (trimmed === '2') {
             await showConfigMenu();
         } else if (trimmed === '1') {
             // Cek kelengkapan konfigurasi minimal sebelum memulai bot
             if (!config.userName || !config.userOptId || !config.targetGroupName || config.monitoredAdmins.length === 0) {
                 console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Anda terlebih dahulu di Menu 2.');
+                await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
                 continue;
             }
 
+            console.clear();
             console.log('\n[SYSTEM] Menginisialisasi koneksi WhatsApp Web...');
             client.initialize();
             break; // Keluar dari menu loop karena client sedang berjalan
         } else {
             console.log('[ERROR] Pilihan tidak valid.');
+            await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
         }
     }
 }
