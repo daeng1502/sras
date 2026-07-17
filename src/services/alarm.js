@@ -20,26 +20,23 @@ function triggerLocalAndroidAlarm() {
     // Ambil volume musik media saat ini agar bisa dikembalikan ke keadaan semula nanti
     exec('termux-volume', (err, stdout, stderr) => {
         let originalVolume = 7; // nilai default aman
-        let maxVolume = 15; // nilai default aman jika parsing gagal
         try {
             if (!err && stdout) {
                 const streams = JSON.parse(stdout);
                 const musicStream = streams.find(s => s.stream === 'music');
                 if (musicStream) {
                     originalVolume = musicStream.volume;
-                    if (musicStream.max_volume) {
-                        maxVolume = musicStream.max_volume;
-                    }
                 }
             }
         } catch (e) {
             // Abaikan kegagalan parsing volume
         }
 
-        console.log(`[LOCAL ALARM] Menaikkan volume media dari level ${originalVolume} ke ${maxVolume} (Maksimal)...`);
+        const targetVolume = 150; // Menggunakan level 150 sesuai permintaan khusus untuk HP Anda
+        console.log(`[LOCAL ALARM] Menaikkan volume media dari level ${originalVolume} ke ${targetVolume} (Maksimal)...`);
         
-        // 1. Set volume media ke maksimal dinamis sesuai perangkat HP Anda
-        exec(`termux-volume music ${maxVolume}`, () => {
+        // 1. Set volume media ke level 150 (Android akan mencocokkan ke level tertinggi perangkat Anda)
+        exec(`termux-volume music ${targetVolume}`, () => {
             // 2. Getarkan HP selama 1.5 detik
             exec('termux-vibrate -d 1500');
             
