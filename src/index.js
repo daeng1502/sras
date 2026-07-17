@@ -17,9 +17,14 @@ function getTermuxChromiumPath() {
     }
     
     // Path standar Chromium di Android Termux
-    const termuxChromiumPath = '/data/data/com.termux/files/usr/bin/chromium';
-    if (fs.existsSync(termuxChromiumPath)) {
-        return termuxChromiumPath;
+    const termuxPaths = [
+        '/data/data/com.termux/files/usr/bin/chromium-browser',
+        '/data/data/com.termux/files/usr/bin/chromium'
+    ];
+    for (const path of termuxPaths) {
+        if (fs.existsSync(path)) {
+            return path;
+        }
     }
     
     return undefined;

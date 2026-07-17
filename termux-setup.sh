@@ -24,7 +24,7 @@ echo "\n[4/5] Mengatur variabel lingkungan dan menginstal modul NPM..."
 # Blokir download browser Chromium internal bawaan Puppeteer
 export PUPPETEER_SKIP_DOWNLOAD=true
 export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-export PUPPETEER_EXECUTABLE_PATH=$(command -v chromium)
+export PUPPETEER_EXECUTABLE_PATH=$(command -v chromium-browser || command -v chromium)
 
 echo "Menjalankan npm install..."
 npm install
@@ -34,7 +34,7 @@ cat << 'EOF' > start-termux.sh
 #!/data/data/com.termux/files/usr/bin/bash
 export PUPPETEER_SKIP_DOWNLOAD=true
 export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-export PUPPETEER_EXECUTABLE_PATH=$(command -v chromium)
+export PUPPETEER_EXECUTABLE_PATH=$(command -v chromium-browser || command -v chromium)
 node src/index.js
 EOF
 
