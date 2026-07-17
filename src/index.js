@@ -127,38 +127,6 @@ client.on('auth_failure', (msg) => {
 let targetGroupJid = null;
 const groupMessageCache = {};
 let isAutoSendEnabled = true;
-let targetGroupAdmins = []; // Daftar admin grup target yang dimuat secara otomatis dari WhatsApp
-
-/**
- * Memperbarui daftar admin grup target dari data peserta obrolan secara dinamis langsung dari server WhatsApp
- */
-async function refreshGroupAdmins(chatId) {
-    try {
-        console.log('[DIAGNOSTIK] Meminta data detail grup segar langsung dari server WhatsApp...');
-        const activeChat = await client.getChatById(chatId);
-
-        if (activeChat.isGroup && activeChat.participants) {
-            console.log(`[DIAGNOSTIK] Jumlah total anggota di grup target: ${activeChat.participants.length}`);
-            
-            if (activeChat.participants.length > 0) {
-                console.log(`[DIAGNOSTIK] Raw data peserta pertama: ${JSON.stringify(activeChat.participants[0])}`);
-            }
-
-            targetGroupAdmins = activeChat.participants
-                .filter(p => p.isAdmin || p.isSuperAdmin || p.role === 'admin' || p.role === 'creator')
-                .map(p => p.id._serialized);
-            
-            console.log(`[SYSTEM] Berhasil memperbarui daftar admin grup target secara otomatis. Ditemukan ${targetGroupAdmins.length} admin.`);
-            
-            const sampleAdmins = targetGroupAdmins.map(a => a.split('@')[0]);
-            console.log(`[DIAGNOSTIK] Daftar JID Admin terdeteksi: [${sampleAdmins.join(', ')}]`);
-        } else {
-            console.log('[DIAGNOSTIK] Gagal membaca list participants grup target (Bernilai kosong/undefined).');
-        }
-    } catch (err) {
-        console.error('[ERROR] Gagal memperbarui daftar admin grup target:', err.message);
-    }
-}
 
 // Event ketika client siap menerima pesan
 client.on('ready', async () => {
@@ -170,7 +138,8 @@ client.on('ready', async () => {
     console.log('==================================================');
     console.log(`Pengguna: ${config.userName} (${config.userOptId})`);
     console.log(`Grup Target: ${config.targetGroupName}`);
-    console.log('Daftar Admin: (Akan dideteksi secara otomatis dari grup target)');
+    const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
+    console.log(`Daftar Admin: ${adminsString}`);
 
     const answer = await askQuestion('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ');
     const inputKeywords = answer.trim()
@@ -223,31 +192,7 @@ client.on('message', async (msg) => {
         });
         if (cache.length > 10) cache.shift(); // Batasi cache hingga 10 pesan terakhir
 
-        // 2. Deteksi otomatis Target Group JID & admin jika belum teridentifikasi
-        if (!targetGroupJid) {
-            try {
-                const chat = await msg.getChat();
-                console.log(`[DIAGNOSTIK] Membandingkan grup: "${chat.name}" vs target filter: "${config.targetGroupName}"`);
-                if (chat.isGroup && chat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
-                    targetGroupJid = msg.from;
-                    console.log(`[SYSTEM] Target grup terdeteksi secara otomatis dan terverifikasi! JID: "${targetGroupJid}"`);
-                    await refreshGroupAdmins(msg.from);
-                } else {
-                    console.log(`[DIAGNOSTIK] Nama grup tidak cocok.`);
-                }
-            } catch (err) {
-                // Abaikan jika getChat gagal di awal
-            }
-        }
-
-        // Jika JID sudah terkunci tetapi admin list masih kosong, muat ulang admin list
-        if (msg.from === targetGroupJid && targetGroupAdmins.length === 0) {
-            try {
-                await refreshGroupAdmins(msg.from);
-            } catch (err) {}
-        }
-
-        // 3. Deteksi apakah pengirim adalah salah satu admin yang dipantau (dinamis & fleksibel terhadap suffix @c.us / @lid / Phone vs LID mapping)
+        // 2. Deteksi apakah pengirim adalah salah satu admin yang dipantau (dinamis & fleksibel terhadap suffix @c.us / @lid / Phone vs LID mapping)
         const senderId = msg.author;
         let senderContactNumber = '';
         try {
@@ -257,12 +202,30 @@ client.on('message', async (msg) => {
             // Fallback jika getContact gagal
         }
         const senderIdNumber = senderId ? senderId.split('@')[0] : '';
-        const isFromMonitoredAdmin = targetGroupAdmins.some(adminJid => {
+        const isFromMonitoredAdmin = config.monitoredAdmins.some(adminJid => {
             const adminNumber = adminJid.split('@')[0];
             return adminJid === senderId || 
                    adminNumber === senderIdNumber || 
                    (senderContactNumber && adminNumber === senderContactNumber);
         });
+
+        // 3. Deteksi otomatis Target Group JID jika belum teridentifikasi (hanya jika pesan dikirim oleh Admin Monitored)
+        if (isFromMonitoredAdmin && !targetGroupJid) {
+            try {
+                const chat = await msg.getChat();
+                console.log(`[DIAGNOSTIK] Membandingkan grup: "${chat.name}" vs target filter: "${config.targetGroupName}"`);
+                if (chat.isGroup && chat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
+                    targetGroupJid = msg.from;
+                    console.log(`[SYSTEM] Target grup terdeteksi secara otomatis dan terverifikasi! JID: "${targetGroupJid}"`);
+                } else {
+                    console.log(`[DIAGNOSTIK] Nama grup tidak cocok.`);
+                }
+            } catch (err) {
+                // Fallback jika getChat gagal
+                targetGroupJid = msg.from;
+                console.log(`[SYSTEM] Gagal memvalidasi nama grup secara online (CDP error). Menetapkan JID: "${targetGroupJid}" secara otomatis.`);
+            }
+        }
 
         // CETAK LOG PEMBANTU DIAGNOSTIK
         if (isFromMonitoredAdmin) {
@@ -270,7 +233,7 @@ client.on('message', async (msg) => {
         } else {
             const isPotentialShift = parser.isShiftOpening(msg.body);
             if (isPotentialShift) {
-                console.log(`[DIAGNOSTIK] Deteksi pesan pembukaan shift, tapi diabaikan karena pengirim (${senderId}) bukan Admin grup target ini.`);
+                console.log(`[DIAGNOSTIK] Deteksi pesan pembukaan shift, tapi diabaikan karena pengirim (${senderId}) bukan salah satu Admin yang dipantau (Nomor HP Terjembatani: ${senderContactNumber || 'Gagal'}).`);
             }
         }
 
@@ -439,6 +402,19 @@ function saveToEnv(key, value) {
     else if (key === 'USER_OPT_ID') config.userOptId = processedValue;
     else if (key === 'USER_HP') config.userHp = processedValue;
     else if (key === 'TARGET_GROUP_NAME') config.targetGroupName = processedValue;
+    else if (key === 'MONITORED_ADMINS') {
+        config.monitoredAdmins = processedValue
+            .split(',')
+            .map(admin => admin.trim())
+            .filter(admin => admin.length > 0)
+            .map(admin => {
+                let clean = admin;
+                if (clean.startsWith('0')) {
+                    clean = '62' + clean.slice(1);
+                }
+                return clean.includes('@') ? clean : `${clean}@c.us`;
+            });
+    }
 
 }
 
@@ -468,13 +444,15 @@ async function showConfigMenu() {
         console.log(`2. Ubah OPT ID           [${config.userOptId || '(Kosong)'}]`);
         console.log(`3. Ubah Nomor HP Anda    [${config.userHp || '(Kosong)'}]`);
         console.log(`4. Ubah Nama Grup WA     [${config.targetGroupName || '(Kosong)'}]`);
-        console.log('5. Kembali ke Menu Utama');
+        const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
+        console.log(`5. Ubah Nomor HP Admin   [${adminsString || '(Kosong)'}]`);
+        console.log('6. Kembali ke Menu Utama');
         console.log('==================================================');
 
-        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-5): ');
+        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-6): ');
         const trimmed = choice.trim();
 
-        if (trimmed === '5') {
+        if (trimmed === '6') {
             break;
         }
 
@@ -497,6 +475,10 @@ async function showConfigMenu() {
             case '4':
                 key = 'TARGET_GROUP_NAME';
                 promptText = `Masukkan Nama Grup WA Target [Saat ini: ${config.targetGroupName}]: `;
+                break;
+            case '5':
+                key = 'MONITORED_ADMINS';
+                promptText = `Masukkan Daftar HP Admin (pisahkan koma) [Saat ini: ${adminsString}]: `;
                 break;
             default:
                 console.log('[ERROR] Pilihan tidak valid.');
@@ -545,7 +527,7 @@ async function startSystem() {
             await showConfigMenu();
         } else if (trimmed === '1') {
             // Cek kelengkapan konfigurasi minimal sebelum memulai bot
-            if (!config.userName || !config.userOptId || !config.targetGroupName) {
+            if (!config.userName || !config.userOptId || !config.targetGroupName || config.monitoredAdmins.length === 0) {
                 console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Anda terlebih dahulu di Menu 2.');
                 await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
                 continue;
