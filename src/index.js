@@ -130,14 +130,14 @@ client.on('ready', async () => {
         console.log('[INFO] Bot dikonfigurasi untuk memantau SEMUA shift (Tanpa filter spesifik).');
     }
 
-    const autoSendAns = await askQuestion('\n[INPUT] Apakah ingin mengaktifkan Kirim Chat Otomatis? (Y/n): ');
+    const autoSendAns = await askQuestion('\n[INPUT] Apakah ingin mengaktifkan Kirim Chat Otomatis? (y/N): ');
     const cleanAutoSend = autoSendAns.trim().toLowerCase();
-    if (cleanAutoSend === 'n' || cleanAutoSend === 'no') {
-        isAutoSendEnabled = false;
-        console.log('[INFO] MODE PANTAU SAJA aktif. Bot hanya akan membunyikan alarm tanpa mengirim chat otomatis.');
-    } else {
+    if (cleanAutoSend === 'y' || cleanAutoSend === 'yes') {
         isAutoSendEnabled = true;
         console.log('[INFO] MODE OTOMATIS aktif. Bot akan membunyikan alarm dan mengirim chat otomatis ke grup.');
+    } else {
+        isAutoSendEnabled = false;
+        console.log('[INFO] MODE PANTAU SAJA aktif. Bot hanya akan membunyikan alarm tanpa mengirim chat otomatis.');
     }
 
     console.log(`\n[SYSTEM] Menunggu pesan lowongan dari Admin di grup target "${config.targetGroupName}"...`);
