@@ -25,7 +25,6 @@ const config = {
         }),
     storePath: path.join(__dirname, './database/store.json'),
     historyPath: path.join(__dirname, './database/history.log'),
-    ntfyTopic: process.env.NTFY_TOPIC || 'sras_budisantoso_alarm',
     targetShiftKeywords: []
 };
 

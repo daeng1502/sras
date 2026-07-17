@@ -315,7 +315,6 @@ function saveToEnv(key, value) {
     else if (key === 'USER_OPT_ID') config.userOptId = processedValue;
     else if (key === 'USER_HP') config.userHp = processedValue;
     else if (key === 'TARGET_GROUP_NAME') config.targetGroupName = processedValue;
-    else if (key === 'NTFY_TOPIC') config.ntfyTopic = processedValue;
     else if (key === 'MONITORED_ADMINS') {
         config.monitoredAdmins = processedValue
             .split(',')
@@ -358,14 +357,13 @@ async function showConfigMenu() {
         console.log(`4. Ubah Nama Grup WA     [${config.targetGroupName || '(Kosong)'}]`);
         const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
         console.log(`5. Ubah Nomor HP Admin   [${adminsString || '(Kosong)'}]`);
-        console.log(`6. Ubah Topik Alarm ntfy [${config.ntfyTopic || '(Kosong)'}]`);
-        console.log('7. Kembali ke Menu Utama');
+        console.log('6. Kembali ke Menu Utama');
         console.log('==================================================');
 
-        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-7): ');
+        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-6): ');
         const trimmed = choice.trim();
 
-        if (trimmed === '7') {
+        if (trimmed === '6') {
             break;
         }
 
@@ -392,10 +390,6 @@ async function showConfigMenu() {
             case '5':
                 key = 'MONITORED_ADMINS';
                 promptText = `Masukkan Daftar HP Admin (pisahkan koma) [Saat ini: ${adminsString}]: `;
-                break;
-            case '6':
-                key = 'NTFY_TOPIC';
-                promptText = `Masukkan Topik Alarm ntfy baru [Saat ini: ${config.ntfyTopic}]: `;
                 break;
             default:
                 console.log('[ERROR] Pilihan tidak valid.');

@@ -1,50 +1,6 @@
-const https = require('https');
 const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const config = require('../config');
-
-/**
- * Mengirimkan push notifikasi darurat gratis ke HP melalui ntfy.sh.
- * @param {string} type - Tipe kejadian ('REGISTER' atau 'ACCEPTED')
- * @param {string} details - Detail informasi kejadian
- */
-function sendNtfyNotification(type, details) {
-    if (!config.ntfyTopic) {
-        console.log('[NTFY] Notifikasi tidak dikirim karena NTFY_TOPIC belum dikonfigurasi di .env');
-        return;
-    }
-
-    const url = `https://ntfy.sh/${config.ntfyTopic}`;
-    const message = `KARAJO OI`;
-
-    const options = {
-        method: 'POST',
-        headers: {
-            'Title': `SRAS Alert: ${type}`,
-            'Priority': type === 'ACCEPTED' ? 'max' : 'high', // max memicu alarm bypass DND di ntfy app
-            'Tags': type === 'ACCEPTED' ? 'rotating_light,alert' : 'bell,incoming_envelope',
-            'Content-Type': 'text/plain; charset=utf-8'
-        }
-    };
-
-    console.log(`[NTFY] Mengirimkan notifikasi push ke topik: ${config.ntfyTopic}...`);
-
-    const req = https.request(url, options, (res) => {
-        let body = '';
-        res.on('data', (chunk) => body += chunk);
-        res.on('end', () => {
-            console.log(`[NTFY] Notifikasi terkirim. Status: ${res.statusCode}.`);
-        });
-    });
-
-    req.on('error', (e) => {
-        console.error(`[NTFY] Gagal mengirim notifikasi ke HP: ${e.message}`);
-    });
-
-    req.write(message);
-    req.end();
-}
 
 /**
  * Memicu getaran, suara Text-to-Speech, dan ringtone kencang secara lokal di HP Android Termux
@@ -86,8 +42,8 @@ function triggerLocalAndroidAlarm() {
             // 3. HP berbicara langsung lewat Text-to-Speech
             exec('termux-tts-speak "Ada shift baru! Segera cek WhatsApp Anda."');
             
-            // 4. Putar nada dering alarm.wav
-            console.log('[LOCAL ALARM] Memutar nada dering alarm.wav...');
+            // 4. Putar nada dering alarm
+            console.log('[LOCAL ALARM] Memutar nada dering alarm...');
             exec(`termux-media-player play "${alarmPath}"`, () => {
                 // 5. Kembalikan volume HP ke level awal setelah nada dering selesai berbunyi
                 console.log(`[LOCAL ALARM] Nada dering selesai. Mengembalikan volume media ke level semula: ${originalVolume}`);
@@ -98,20 +54,19 @@ function triggerLocalAndroidAlarm() {
 }
 
 /**
- * Memicu alarm dengan mengirimkan push notifikasi ntfy.sh ke HP dan membunyikan alarm fisik lokal di Termux.
+ * Memicu alarm fisik lokal di Termux jika berjalan di lingkungan HP Android.
  * @param {string} type - Tipe kejadian ('REGISTER' untuk pendaftaran terkirim, 'ACCEPTED' untuk diterima)
  * @param {string} details - Informasi detail pendaftaran
  */
 function triggerAlarm(type = 'REGISTER', details = 'Shift Baru') {
     console.log(`[ALARM] Memicu peringatan HP [${type}] untuk: ${details}`);
 
-    // 1. Kirim notifikasi ntfy online (sebagai cadangan)
-    sendNtfyNotification(type, details);
-
-    // 2. Jika bot berjalan di lingkungan Android Termux, picu alarm fisik & kontrol volume secara lokal
+    // Jika bot berjalan di lingkungan Android Termux, picu alarm fisik & kontrol volume secara lokal
     const isAndroid = process.platform === 'android' || fs.existsSync('/data/data/com.termux');
     if (isAndroid) {
         triggerLocalAndroidAlarm();
+    } else {
+        console.log('[ALARM] (Lokal Non-Android) Membunyikan alarm di konsol laptop.');
     }
 }
 
