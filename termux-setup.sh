@@ -10,8 +10,8 @@ echo "=================================================="
 echo "\n[1/5] Memperbarui paket-paket sistem Termux..."
 apt update && apt upgrade -y
 
-echo "\n[2/5] Menginstal paket dasar: Node.js, Git, dan repositori X11/TUR..."
-apt install nodejs git -y
+echo "\n[2/5] Menginstal paket dasar: Node.js, Git, Termux:API, dan repositori X11/TUR..."
+apt install nodejs git termux-api -y
 apt install x11-repo -y
 # Install repositori komunitas tambahan (TUR) untuk Chromium
 apt install tur-repo -y
