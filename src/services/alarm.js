@@ -46,12 +46,12 @@ function triggerLocalAndroidAlarm() {
             console.log('[LOCAL ALARM] Memutar nada dering alarm...');
             exec(`termux-media-player play "${alarmPath}"`);
 
-            // Jeda 10 detik agar nada dering berbunyi nyaring, lalu hentikan media player dan kembalikan volume HP
+            // Jeda 5 menit 26 detik agar nada dering berbunyi penuh, lalu hentikan media player dan kembalikan volume HP
             setTimeout(() => {
                 console.log(`[LOCAL ALARM] Menghentikan nada dering dan mengembalikan volume media ke level semula: ${originalVolume}`);
                 exec('termux-media-player stop');
                 exec(`termux-volume music ${originalVolume}`);
-            }, 10000); // Durasi alarm berbunyi: 10 detik
+            }, 326000); // Durasi alarm berbunyi: 5 menit 26 detik (326000 ms)
         });
     });
 }
