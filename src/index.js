@@ -101,6 +101,7 @@ client.on('auth_failure', (msg) => {
 // Variabel state lokal (menghindari pemanggilan getChat / getChats CDP Puppeteer yang rawan bug 'r')
 let targetGroupJid = null;
 const groupMessageCache = {};
+let isAutoSendEnabled = true;
 
 // Event ketika client siap menerima pesan
 client.on('ready', async () => {
@@ -127,6 +128,16 @@ client.on('ready', async () => {
     } else {
         config.targetShiftKeywords = [];
         console.log('[INFO] Bot dikonfigurasi untuk memantau SEMUA shift (Tanpa filter spesifik).');
+    }
+
+    const autoSendAns = await askQuestion('\n[INPUT] Apakah ingin mengaktifkan Kirim Chat Otomatis? (Y/n): ');
+    const cleanAutoSend = autoSendAns.trim().toLowerCase();
+    if (cleanAutoSend === 'n' || cleanAutoSend === 'no') {
+        isAutoSendEnabled = false;
+        console.log('[INFO] MODE PANTAU SAJA aktif. Bot hanya akan membunyikan alarm tanpa mengirim chat otomatis.');
+    } else {
+        isAutoSendEnabled = true;
+        console.log('[INFO] MODE OTOMATIS aktif. Bot akan membunyikan alarm dan mengirim chat otomatis ke grup.');
     }
 
     console.log(`\n[SYSTEM] Menunggu pesan lowongan dari Admin di grup target "${config.targetGroupName}"...`);
@@ -244,9 +255,14 @@ client.on('message', async (msg) => {
                     }
                 }
 
-                // Balas pesan ke grup secara otomatis dengan template terisi (BR-004 & BR-006)
-                await client.sendMessage(msg.from, textToSend);
-                console.log('[KIRIM] Berhasil mengirimkan daftar pendaftaran terbaru ke grup.');
+                // Kirim pesan pendaftaran otomatis jika mode otomatis aktif
+                if (isAutoSendEnabled) {
+                    // Balas pesan ke grup secara otomatis dengan template terisi (BR-004 & BR-006)
+                    await client.sendMessage(msg.from, textToSend);
+                    console.log('[KIRIM] Berhasil mengirimkan daftar pendaftaran terbaru ke grup.');
+                } else {
+                    console.log('[INFO] MODE PANTAU SAJA aktif. Chat otomatis tidak dikirim ke grup.');
+                }
             } else {
                 console.log(`[ABAI] ${regResult.message}`);
                 historyLogger.logEvent('SKIP', `Pendaftaran dilewati karena: ${regResult.message}`);
