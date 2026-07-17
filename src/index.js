@@ -2,6 +2,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const readline = require('readline');
 const fs = require('fs');
+const path = require('path');
 const config = require('./config');
 const parser = require('./services/parser');
 const registrator = require('./services/registrator');
@@ -257,50 +258,207 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 /**
- * Menanyakan kata kunci target shift ke pengguna secara interaktif sebelum memulai koneksi.
+ * Membaca input dari terminal menggunakan modul readline secara asinkron
  */
-function askTargetKeywords() {
+function askQuestion(query) {
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout
     });
-
     return new Promise((resolve) => {
-        rl.question('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ', (answer) => {
+        rl.question(query, (answer) => {
             rl.close();
-            const inputKeywords = answer.trim()
-                .split(',')
-                .map(kw => kw.trim().toLowerCase())
-                .filter(kw => kw.length > 0);
-            
-            resolve(inputKeywords);
+            resolve(answer);
         });
     });
 }
 
 /**
- * Alur utama inisialisasi sistem
+ * Menyimpan nilai konfigurasi secara dinamis ke berkas .env
  */
-async function startSystem() {
-    console.log('=== Shift Registration Automation System (SRAS) ===');
-    console.log('Memulai sistem...');
-    console.log(`Pengguna: ${config.userName} (${config.userOptId})`);
-    console.log(`Grup Target: ${config.targetGroupName}`);
-    console.log(`Daftar Admin: ${config.monitoredAdmins.join(', ')}`);
-
-    // Dapatkan masukan kata kunci dari pengguna secara interaktif
-    const keywords = await askTargetKeywords();
-    if (keywords.length > 0) {
-        config.targetShiftKeywords = keywords;
-        console.log(`[INFO] Bot dikonfigurasi untuk HANYA menargetkan shift dengan kata kunci: "${keywords.join(', ')}"`);
-    } else {
-        config.targetShiftKeywords = [];
-        console.log('[INFO] Bot dikonfigurasi untuk memantau SEMUA shift (Tanpa filter spesifik).');
+function saveToEnv(key, value) {
+    const envPath = path.join(__dirname, '../.env');
+    let envContent = '';
+    if (fs.existsSync(envPath)) {
+        envContent = fs.readFileSync(envPath, 'utf8');
     }
 
-    console.log('\n[SYSTEM] Menginisialisasi koneksi WhatsApp Web...');
-    client.initialize();
+    const lines = envContent.split('\n');
+    let found = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (trimmed.startsWith(`${key}=`)) {
+            lines[i] = `${key}="${value}"`;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        lines.push(`${key}="${value}"`);
+    }
+
+    fs.writeFileSync(envPath, lines.join('\n'), 'utf8');
+    
+    // Sinkronisasi nilai ke variabel RAM konfigurasi secara instan
+    if (key === 'USER_NAME') config.userName = value;
+    else if (key === 'USER_OPT_ID') config.userOptId = value;
+    else if (key === 'USER_HP') config.userHp = value;
+    else if (key === 'TARGET_GROUP_NAME') config.targetGroupName = value;
+    else if (key === 'NTFY_TOPIC') config.ntfyTopic = value;
+    else if (key === 'MONITORED_ADMINS') {
+        config.monitoredAdmins = value
+            .split(',')
+            .map(admin => admin.trim())
+            .filter(admin => admin.length > 0)
+            .map(admin => {
+                let clean = admin;
+                if (clean.startsWith('0')) {
+                    clean = '62' + clean.slice(1);
+                }
+                return clean.includes('@') ? clean : `${clean}@c.us`;
+            });
+    }
 }
 
-// Jalankan sistem
+/**
+ * Menghapus sesi autentikasi lokal WhatsApp Web (Logout)
+ */
+function logoutWhatsApp() {
+    const authPath = path.join(__dirname, '../.wwebjs_auth');
+    if (fs.existsSync(authPath)) {
+        fs.rmSync(authPath, { recursive: true, force: true });
+        console.log('\n[SUKSES] Sesi WhatsApp lokal berhasil dihapus (Logout sukses).');
+    } else {
+        console.log('\n[INFO] Sesi WhatsApp memang belum terdaftar.');
+    }
+}
+
+/**
+ * Menampilkan sub-menu pengaturan konfigurasi (.env)
+ */
+async function showConfigMenu() {
+    while (true) {
+        console.log('\n==================================================');
+        console.log('              SUB-MENU PENGATURAN BOT');
+        console.log('==================================================');
+        console.log(`1. Ubah Nama Pengguna    [${config.userName || '(Kosong)'}]`);
+        console.log(`2. Ubah OPT ID           [${config.userOptId || '(Kosong)'}]`);
+        console.log(`3. Ubah Nomor HP Anda    [${config.userHp || '(Kosong)'}]`);
+        console.log(`4. Ubah Nama Grup WA     [${config.targetGroupName || '(Kosong)'}]`);
+        const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
+        console.log(`5. Ubah Nomor HP Admin   [${adminsString || '(Kosong)'}]`);
+        console.log(`6. Ubah Topik Alarm ntfy [${config.ntfyTopic || '(Kosong)'}]`);
+        console.log('7. Kembali ke Menu Utama');
+        console.log('==================================================');
+
+        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-7): ');
+        const trimmed = choice.trim();
+
+        if (trimmed === '7') {
+            break;
+        }
+
+        let key = '';
+        let promptText = '';
+
+        switch (trimmed) {
+            case '1':
+                key = 'USER_NAME';
+                promptText = `Masukkan Nama Pengguna baru [Saat ini: ${config.userName}]: `;
+                break;
+            case '2':
+                key = 'USER_OPT_ID';
+                promptText = `Masukkan OPT ID baru [Saat ini: ${config.userOptId}]: `;
+                break;
+            case '3':
+                key = 'USER_HP';
+                promptText = `Masukkan Nomor HP Anda (untuk Pairing Code) [Saat ini: ${config.userHp}]: `;
+                break;
+            case '4':
+                key = 'TARGET_GROUP_NAME';
+                promptText = `Masukkan Nama Grup WA Target [Saat ini: ${config.targetGroupName}]: `;
+                break;
+            case '5':
+                key = 'MONITORED_ADMINS';
+                promptText = `Masukkan Daftar HP Admin (pisahkan koma) [Saat ini: ${adminsString}]: `;
+                break;
+            case '6':
+                key = 'NTFY_TOPIC';
+                promptText = `Masukkan Topik Alarm ntfy baru [Saat ini: ${config.ntfyTopic}]: `;
+                break;
+            default:
+                console.log('[ERROR] Pilihan tidak valid.');
+                continue;
+        }
+
+        const newValue = await askQuestion(promptText);
+        saveToEnv(key, newValue.trim());
+        console.log(`\n[SUKSES] Konfigurasi ${key} berhasil diperbarui.`);
+    }
+}
+
+/**
+ * Alur utama inisialisasi sistem dengan menu dasbor utama
+ */
+async function startSystem() {
+    while (true) {
+        console.log('\n==================================================');
+        console.log('        MENU UTAMA BOT REGISTRASI SHIFT (SRAS)');
+        console.log('==================================================');
+        console.log('1. Mulai Monitoring & Otomasi');
+        console.log('2. Atur Profil & Konfigurasi (.env)');
+        console.log('3. Logout WhatsApp (Hapus Sesi)');
+        console.log('4. Keluar');
+        console.log('==================================================');
+
+        const choice = await askQuestion('Pilih Menu (1-4): ');
+        const trimmed = choice.trim();
+
+        if (trimmed === '4') {
+            console.log('[SYSTEM] Keluar dari program. Sampai jumpa!');
+            process.exit(0);
+        } else if (trimmed === '3') {
+            logoutWhatsApp();
+        } else if (trimmed === '2') {
+            await showConfigMenu();
+        } else if (trimmed === '1') {
+            // Cek kelengkapan konfigurasi minimal sebelum memulai bot
+            if (!config.userName || !config.userOptId || !config.targetGroupName || config.monitoredAdmins.length === 0) {
+                console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Anda terlebih dahulu di Menu 2.');
+                continue;
+            }
+
+            console.log('\n==================================================');
+            console.log('          MEMULAI MONITORING SHIFT');
+            console.log('==================================================');
+            console.log(`Pengguna: ${config.userName} (${config.userOptId})`);
+            console.log(`Grup Target: ${config.targetGroupName}`);
+            console.log(`Daftar Admin: ${config.monitoredAdmins.join(', ')}`);
+
+            const answer = await askQuestion('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ');
+            const inputKeywords = answer.trim()
+                .split(',')
+                .map(kw => kw.trim().toLowerCase())
+                .filter(kw => kw.length > 0);
+
+            if (inputKeywords.length > 0) {
+                config.targetShiftKeywords = inputKeywords;
+                console.log(`[INFO] Bot dikonfigurasi untuk HANYA menargetkan shift dengan kata kunci: "${inputKeywords.join(', ')}"`);
+            } else {
+                config.targetShiftKeywords = [];
+                console.log('[INFO] Bot dikonfigurasi untuk memantau SEMUA shift (Tanpa filter spesifik).');
+            }
+
+            console.log('\n[SYSTEM] Menginisialisasi koneksi WhatsApp Web...');
+            client.initialize();
+            break; // Keluar dari menu loop karena client sedang berjalan
+        } else {
+            console.log('[ERROR] Pilihan tidak valid.');
+        }
+    }
+}
+
+// Jalankan sistem menu utama
 startSystem();
