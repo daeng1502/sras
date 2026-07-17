@@ -495,7 +495,7 @@ async function startSystem() {
             await showConfigMenu();
         } else if (trimmed === '1') {
             // Cek kelengkapan konfigurasi minimal sebelum memulai bot
-            if (!config.userName || !config.userOptId || !config.targetGroupName || config.monitoredAdmins.length === 0) {
+            if (!config.userName || !config.userOptId || !config.targetGroupName) {
                 console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Anda terlebih dahulu di Menu 2.');
                 await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
                 continue;
