@@ -50,9 +50,14 @@ function sendNtfyNotification(type, details) {
  * Memicu getaran, suara Text-to-Speech, dan ringtone kencang secara lokal di HP Android Termux
  */
 function triggerLocalAndroidAlarm() {
-    const alarmPath = path.join(__dirname, '../../assets/alarm.wav');
+    // Cari alarm.mp3 kustom terlebih dahulu, jika tidak ada gunakan default alarm.wav
+    let alarmPath = path.join(__dirname, '../../assets/alarm.mp3');
     if (!fs.existsSync(alarmPath)) {
-        console.log(`[LOCAL ALARM] Berkas alarm tidak ditemukan di: "${alarmPath}"`);
+        alarmPath = path.join(__dirname, '../../assets/alarm.wav');
+    }
+
+    if (!fs.existsSync(alarmPath)) {
+        console.log('[LOCAL ALARM] Berkas alarm tidak ditemukan.');
         return;
     }
 
