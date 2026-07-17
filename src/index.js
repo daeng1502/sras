@@ -167,9 +167,12 @@ client.on('message', async (msg) => {
         });
         if (cache.length > 10) cache.shift(); // Batasi cache hingga 10 pesan terakhir
 
-        // 2. Deteksi pengirim adalah salah satu admin yang dipantau
-        const senderId = msg.author;
-        const isFromMonitoredAdmin = config.monitoredAdmins.includes(senderId);
+        // 2. Deteksi pengirim adalah salah satu admin yang dipantau (fleksibel terhadap suffix @c.us / @lid)
+        const senderNumber = msg.author ? msg.author.split('@')[0] : '';
+        const isFromMonitoredAdmin = config.monitoredAdmins.some(adminJid => {
+            const adminNumber = adminJid.split('@')[0];
+            return adminNumber === senderNumber;
+        });
 
         // 3. Deteksi otomatis Target Group JID jika belum teridentifikasi
         if (isFromMonitoredAdmin && !targetGroupJid) {
