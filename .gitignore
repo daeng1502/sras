@@ -6,8 +6,7 @@ node_modules/
 .wwebjs_cache/
 
 # Konfigurasi Sensitif Lingkungan Lokal (Berisi Nomor HP, Nama, & OPT ID)
-.env
-.env.local
+# .env dan .env.local dilacak secara default (isi sensitif dikosongkan sebelum dipush)
 
 # Log Aktivitas & Database Lokal (Agar status login tidak bertabrakan)
 src/database/history.log

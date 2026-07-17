@@ -75,5 +75,7 @@ Setelah instalasi selesai, untuk menjalankan bot selanjutnya Anda hanya perlu me
 ./start-termux.sh
 ```
 1.  Bot akan berjalan dan menanyakan filter kata kunci target Anda di layar HP.
-2.  Jika dijalankan pertama kali, terminal Termux akan menampilkan **QR Code**. Pindai QR Code tersebut menggunakan WhatsApp di HP lain (atau screenshot lalu scan menggunakan web scanner jika WA yang dipakai berada di HP yang sama).
+2.  **Penautan WhatsApp (Linked Devices)**:
+    *   **Metode A (Pairing Code - Sangat Direkomendasikan di HP)**: Jika Anda mengisi nomor HP Anda pada variabel `USER_HP` di berkas `.env` (misal: `USER_HP="628123456789"`), terminal Termux akan menampilkan **8-Digit Pairing Code** (contoh: `ABCD-EFGH`). Buka WhatsApp Anda -> Perangkat Tertaut -> Tautkan dengan nomor telepon -> Masukkan kode tersebut.
+    *   **Metode B (QR Code)**: Jika variabel `USER_HP` di berkas `.env` dikosongkan, terminal Termux akan menampilkan **QR Code** untuk dipindai seperti biasa.
 3.  Setelah terhubung, bot akan aktif memantau pendaftaran Anda secara mandiri di latar belakang!

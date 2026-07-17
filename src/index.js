@@ -61,9 +61,30 @@ const client = new Client({
 });
 
 // Event ketika QR Code didapatkan untuk dipindai
-client.on('qr', (qr) => {
-    console.log('\n[QR] QR Code terdeteksi! Silakan pindai menggunakan WhatsApp HP Anda:');
-    qrcode.generate(qr, { small: true });
+client.on('qr', async (qr) => {
+    // Jika nomor HP dikonfigurasi di .env, gunakan Pairing Code
+    if (config.userHp) {
+        console.log(`\n[LINKING] Meminta kode penautan untuk nomor HP: ${config.userHp}...`);
+        try {
+            const code = await client.requestPairingCode(config.userHp);
+            console.log(`\n========================================`);
+            console.log(`   KODE PENAUTAN WHATSAPP: ${code.slice(0, 4)}-${code.slice(4)}`);
+            console.log(`========================================`);
+            console.log(`Silakan buka WhatsApp di HP Anda:`);
+            console.log(`1. Buka Perangkat Tertaut (Linked Devices).`);
+            console.log(`2. Ketuk "Tautkan dengan nomor telepon" (Link with phone number).`);
+            console.log(`3. Masukkan kode di atas.`);
+            console.log(`========================================\n`);
+        } catch (err) {
+            console.error('[ERROR] Gagal meminta kode penautan:', err);
+            // Fallback ke QR jika request pairing code gagal
+            qrcode.generate(qr, { small: true });
+        }
+    } else {
+        // Tampilkan QR Code jika USER_HP tidak diisi
+        console.log('\n[QR] QR Code terdeteksi! Silakan pindai menggunakan WhatsApp HP Anda:');
+        qrcode.generate(qr, { small: true });
+    }
 });
 
 // Event ketika otentikasi berhasil
