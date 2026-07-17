@@ -103,6 +103,23 @@ client.on('auth_failure', (msg) => {
 let targetGroupJid = null;
 const groupMessageCache = {};
 let isAutoSendEnabled = true;
+let targetGroupAdmins = []; // Daftar admin grup target yang dimuat secara otomatis dari WhatsApp
+
+/**
+ * Memperbarui daftar admin grup target dari data peserta obrolan secara dinamis
+ */
+async function refreshGroupAdmins(chat) {
+    try {
+        if (chat.isGroup && chat.participants) {
+            targetGroupAdmins = chat.participants
+                .filter(p => p.isAdmin || p.isSuperAdmin)
+                .map(p => p.id._serialized);
+            console.log(`[SYSTEM] Berhasil memperbarui daftar admin grup target secara otomatis. Ditemukan ${targetGroupAdmins.length} admin.`);
+        }
+    } catch (err) {
+        console.error('[ERROR] Gagal memperbarui daftar admin grup target:', err.message);
+    }
+}
 
 // Event ketika client siap menerima pesan
 client.on('ready', async () => {
@@ -114,8 +131,7 @@ client.on('ready', async () => {
     console.log('==================================================');
     console.log(`Pengguna: ${config.userName} (${config.userOptId})`);
     console.log(`Grup Target: ${config.targetGroupName}`);
-    const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
-    console.log(`Daftar Admin: ${adminsString}`);
+    console.log('Daftar Admin: (Akan dideteksi secara otomatis dari grup target)');
 
     const answer = await askQuestion('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ');
     const inputKeywords = answer.trim()
@@ -168,10 +184,32 @@ client.on('message', async (msg) => {
         });
         if (cache.length > 10) cache.shift(); // Batasi cache hingga 10 pesan terakhir
 
-        // 2. Deteksi pengirim adalah salah satu admin yang dipantau (fleksibel terhadap suffix @c.us / @lid)
+        // 2. Deteksi otomatis Target Group JID & admin jika belum teridentifikasi
+        if (!targetGroupJid) {
+            try {
+                const chat = await msg.getChat();
+                if (chat.isGroup && chat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
+                    targetGroupJid = msg.from;
+                    console.log(`[SYSTEM] Target grup terdeteksi secara otomatis dan terverifikasi! JID: "${targetGroupJid}"`);
+                    await refreshGroupAdmins(chat);
+                }
+            } catch (err) {
+                // Abaikan jika getChat gagal di awal
+            }
+        }
+
+        // Jika JID sudah terkunci tetapi admin list masih kosong, muat ulang admin list
+        if (msg.from === targetGroupJid && targetGroupAdmins.length === 0) {
+            try {
+                const chat = await msg.getChat();
+                await refreshGroupAdmins(chat);
+            } catch (err) {}
+        }
+
+        // 3. Deteksi apakah pengirim adalah salah satu admin yang dipantau (dinamis & fleksibel terhadap suffix @c.us / @lid)
         const senderId = msg.author;
         const senderNumber = senderId ? senderId.split('@')[0] : '';
-        const isFromMonitoredAdmin = config.monitoredAdmins.some(adminJid => {
+        const isFromMonitoredAdmin = targetGroupAdmins.some(adminJid => {
             const adminNumber = adminJid.split('@')[0];
             return adminNumber === senderNumber;
         });
@@ -182,33 +220,7 @@ client.on('message', async (msg) => {
         } else {
             const isPotentialShift = parser.isShiftOpening(msg.body);
             if (isPotentialShift) {
-                console.log(`[DIAGNOSTIK] Deteksi pesan pembukaan shift, tapi diabaikan karena pengirim (${senderId}) tidak terdaftar di daftar MONITORED_ADMINS.`);
-            }
-        }
-
-        // 3. Deteksi otomatis Target Group JID jika belum teridentifikasi
-        if (isFromMonitoredAdmin && !targetGroupJid) {
-            const isOpening = parser.isShiftOpening(msg.body);
-            const isVerify = verification.isVerificationMessage(msg.body);
-
-            if (isOpening || isVerify) {
-                console.log(`[DIAGNOSTIK] Admin mengirim pesan format shift/verifikasi. Mencoba mengunci targetGroupJid...`);
-                try {
-                    // Validasi nama grup secara online
-                    const chat = await msg.getChat();
-                    console.log(`[DIAGNOSTIK] Nama grup asli: "${chat.name}" | Target filter: "${config.targetGroupName}"`);
-                    if (chat.isGroup && chat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
-                        targetGroupJid = msg.from;
-                        console.log(`[SYSTEM] Target grup terdeteksi secara otomatis dan terverifikasi! JID: "${targetGroupJid}"`);
-                    } else {
-                        console.log(`[DIAGNOSTIK] Grup diabaikan karena nama grup "${chat.name}" tidak cocok dengan kriteria "${config.targetGroupName}".`);
-                    }
-                } catch (err) {
-                    // Fallback jika getChat() gagal karena error 'r' CDP:
-                    // Kita kunci grup ini secara langsung karena pengirim adalah admin sah dan pesan berformat shift
-                    targetGroupJid = msg.from;
-                    console.log(`[SYSTEM] Gagal memvalidasi nama grup secara online (CDP error). Menetapkan JID: "${targetGroupJid}" secara otomatis.`);
-                }
+                console.log(`[DIAGNOSTIK] Deteksi pesan pembukaan shift, tapi diabaikan karena pengirim (${senderId}) bukan Admin grup target ini.`);
             }
         }
 
@@ -377,19 +389,7 @@ function saveToEnv(key, value) {
     else if (key === 'USER_OPT_ID') config.userOptId = processedValue;
     else if (key === 'USER_HP') config.userHp = processedValue;
     else if (key === 'TARGET_GROUP_NAME') config.targetGroupName = processedValue;
-    else if (key === 'MONITORED_ADMINS') {
-        config.monitoredAdmins = processedValue
-            .split(',')
-            .map(admin => admin.trim())
-            .filter(admin => admin.length > 0)
-            .map(admin => {
-                let clean = admin;
-                if (clean.startsWith('0')) {
-                    clean = '62' + clean.slice(1);
-                }
-                return clean.includes('@') ? clean : `${clean}@c.us`;
-            });
-    }
+
 }
 
 /**
@@ -418,15 +418,13 @@ async function showConfigMenu() {
         console.log(`2. Ubah OPT ID           [${config.userOptId || '(Kosong)'}]`);
         console.log(`3. Ubah Nomor HP Anda    [${config.userHp || '(Kosong)'}]`);
         console.log(`4. Ubah Nama Grup WA     [${config.targetGroupName || '(Kosong)'}]`);
-        const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
-        console.log(`5. Ubah Nomor HP Admin   [${adminsString || '(Kosong)'}]`);
-        console.log('6. Kembali ke Menu Utama');
+        console.log('5. Kembali ke Menu Utama');
         console.log('==================================================');
 
-        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-6): ');
+        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-5): ');
         const trimmed = choice.trim();
 
-        if (trimmed === '6') {
+        if (trimmed === '5') {
             break;
         }
 
@@ -449,10 +447,6 @@ async function showConfigMenu() {
             case '4':
                 key = 'TARGET_GROUP_NAME';
                 promptText = `Masukkan Nama Grup WA Target [Saat ini: ${config.targetGroupName}]: `;
-                break;
-            case '5':
-                key = 'MONITORED_ADMINS';
-                promptText = `Masukkan Daftar HP Admin (pisahkan koma) [Saat ini: ${adminsString}]: `;
                 break;
             default:
                 console.log('[ERROR] Pilihan tidak valid.');

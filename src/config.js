@@ -12,17 +12,7 @@ const config = {
         return clean;
     })(),
     targetGroupName: process.env.TARGET_GROUP_NAME || '',
-    monitoredAdmins: (process.env.MONITORED_ADMINS || '')
-        .split(',')
-        .map(admin => admin.trim())
-        .filter(admin => admin.length > 0)
-        .map(admin => {
-            let clean = admin;
-            if (clean.startsWith('0')) {
-                clean = '62' + clean.slice(1);
-            }
-            return clean.includes('@') ? clean : `${clean}@c.us`;
-        }),
+
     storePath: path.join(__dirname, './database/store.json'),
     historyPath: path.join(__dirname, './database/history.log'),
     targetShiftKeywords: []
