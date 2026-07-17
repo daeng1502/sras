@@ -55,6 +55,11 @@ describe('Parser Service Tests', () => {
             const msg = `Dear Team\nProvide DW SOC Padang Under Vendor [PSD]\n16 Juli 2026\n\n09.00 : 2 orang\n1. budi 12345\n\n11.00 : 2 orang\n1. cika 55555`;
             expect(parser.isShiftOpening(msg)).toBe(false);
         });
+
+        test('harus mendeteksi pembukaan shift pada format kuota-saja tanpa template nomor urut list (Quota-Only)', () => {
+            const msg = `Dear Team\nProvide DW JABODETABEK\n11.00 : 2 orang`;
+            expect(parser.isShiftOpening(msg)).toBe(true);
+        });
     });
 
     describe('isUserAlreadyRegistered', () => {
@@ -132,6 +137,12 @@ describe('Parser Service Tests', () => {
             const result = parser.registerUserInTemplate(template, 'Daeng', '1234567');
             
             expect(result).toBeNull();
+        });
+
+        test('harus menginisialisasi list pendaftaran baru bernomor 1 pada format kuota-saja (Quota-Only)', () => {
+            const template = `Dear Team\nProvide DW JABODETABEK\n11.00 : 2 orang`;
+            const result = parser.registerUserInTemplate(template, 'Daeng', '1234567');
+            expect(result).toContain('11.00 : 2 orang\n1. Daeng 1234567');
         });
     });
 });

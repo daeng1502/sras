@@ -195,13 +195,25 @@ function isShiftOpening(text) {
     // Jika tidak ada satu pun blok yang cocok dengan kata kunci filter, tolak
     if (matchingBlocksCount === 0) return false;
 
-    if (totalFilledLines === 0 && matchingBlocksWithEntriesCount > 0) {
-        // Jika ada list tetapi semuanya kosong, ini pembukaan shift valid
+    if (totalFilledLines === 0) {
+        // Jika tidak ada list terisi sama sekali (baik karena kosong atau karena belum ada list),
+        // maka ini otomatis dianggap sebagai slot terbuka yang sah.
         hasAnyOpenSlot = true;
     }
 
-    // Jika tidak ada list bernomor sama sekali di semua blok yang cocok, tolak
-    if (matchingBlocksWithEntriesCount === 0) return false;
+    // Jika tidak ada list bernomor sama sekali di semua blok yang cocok,
+    // kita tolak HANYA jika tidak ada informasi batas kuota yang valid (contoh: "11.00 : 2 orang")
+    if (matchingBlocksWithEntriesCount === 0) {
+        let hasValidQuota = false;
+        for (let block of blocks) {
+            const quota = getQuotaFromLine(block.headerText);
+            if (quota !== null && quota > 0) {
+                hasValidQuota = true;
+                break;
+            }
+        }
+        if (!hasValidQuota) return false;
+    }
 
     const averageWordCount = totalFilledLines > 0 ? (totalWordCount / totalFilledLines) : 0;
 
