@@ -68,7 +68,21 @@ client.on('qr', async (qr) => {
     if (config.userHp) {
         console.log(`\n[LINKING] Meminta kode penautan untuk nomor HP: ${config.userHp}...`);
         try {
-            const code = await client.requestPairingCode(config.userHp);
+            let code = null;
+            let retries = 3;
+            while (retries > 0) {
+                try {
+                    // Tunggu 3 detik agar sistem penautan internal WA Web siap penuh
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    code = await client.requestPairingCode(config.userHp);
+                    break;
+                } catch (retryErr) {
+                    retries--;
+                    if (retries === 0) throw retryErr;
+                    console.log(`[LINKING] API Penautan belum siap. Mencoba kembali (${3 - retries}/3)...`);
+                }
+            }
+
             console.log(`\n========================================`);
             console.log(`   KODE PENAUTAN WHATSAPP: ${code.slice(0, 4)}-${code.slice(4)}`);
             console.log(`========================================`);
@@ -78,8 +92,9 @@ client.on('qr', async (qr) => {
             console.log(`3. Masukkan kode di atas.`);
             console.log(`========================================\n`);
         } catch (err) {
-            console.error('[ERROR] Gagal meminta kode penautan:', err);
-            // Fallback ke QR jika request pairing code gagal
+            console.error('[ERROR] Gagal meminta kode penautan setelah beberapa kali percobaan:', err.message || err);
+            console.log('\n[FALLBACK] Beralih ke QR Code sebagai cadangan...');
+            // Fallback ke QR jika request pairing code tetap gagal
             qrcode.generate(qr, { small: true });
         }
     } else {
