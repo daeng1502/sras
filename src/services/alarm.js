@@ -5,7 +5,7 @@ const fs = require('fs');
 /**
  * Memicu getaran, suara Text-to-Speech, dan ringtone kencang secara lokal di HP Android Termux
  */
-function triggerLocalAndroidAlarm() {
+function triggerLocalAndroidAlarm(type) {
     // Cari alarm.mp3 kustom terlebih dahulu, jika tidak ada gunakan default alarm.wav
     let alarmPath = path.join(__dirname, '../../assets/alarm.mp3');
     if (!fs.existsSync(alarmPath)) {
@@ -40,8 +40,12 @@ function triggerLocalAndroidAlarm() {
             // 2. Getarkan HP selama 1.5 detik
             exec('termux-vibrate -d 1500');
             
-            // 3. HP berbicara langsung lewat Text-to-Speech
-            exec('termux-tts-speak "Ada shift baru! Segera cek WhatsApp Anda."');
+            // 3. HP berbicara langsung lewat Text-to-Speech (Dinamis sesuai tipe kejadian)
+            let ttsText = 'Ada shift baru! Segera cek WhatsApp Anda.';
+            if (type === 'ACCEPTED') {
+                ttsText = 'Selamat! Pendaftaran shift Anda telah diterima.';
+            }
+            exec(`termux-tts-speak "${ttsText}"`);
             
             // 4. Putar nada dering alarm
             console.log('[LOCAL ALARM] Memutar nada dering alarm...');
@@ -68,7 +72,7 @@ function triggerAlarm(type = 'REGISTER', details = 'Shift Baru') {
     // Jika bot berjalan di lingkungan Android Termux, picu alarm fisik & kontrol volume secara lokal
     const isAndroid = process.platform === 'android' || fs.existsSync('/data/data/com.termux');
     if (isAndroid) {
-        triggerLocalAndroidAlarm();
+        triggerLocalAndroidAlarm(type);
     } else {
         console.log('[ALARM] (Lokal Non-Android) Membunyikan alarm di konsol laptop.');
     }

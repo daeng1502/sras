@@ -322,12 +322,32 @@ client.on('message', async (msg) => {
             return;
         }
 
-        // 5. Deteksi Pengumuman Hasil Verifikasi/Seleksi Admin
-        if (verification.isVerificationMessage(messageText)) {
+        // 5. Deteksi Pengumuman Hasil Verifikasi/Seleksi Admin (Bisa berupa kata kunci atau reply list kuota penuh)
+        let isVerifyMsg = verification.isVerificationMessage(messageText);
+        let isQuotedShiftWithFullQuota = false;
+        let textToVerify = messageText;
+
+        if (msg.hasQuotedMsg) {
+            try {
+                const quotedMsg = await msg.getQuotedMessage();
+                if (parser.isShiftOpening(quotedMsg.body)) {
+                    // Jika yang direply adalah shift, ini kandidat verifikasi
+                    if (isVerifyMsg || parser.isQuotaFull(quotedMsg.body)) {
+                        isQuotedShiftWithFullQuota = true;
+                        textToVerify = quotedMsg.body; // Gunakan teks list yang di-reply untuk verifikasi nama
+                        console.log(`[VERIFIKASI] Mendeteksi Admin mereply list shift target. (isVerifyMsg: ${isVerifyMsg}, isQuotaFull: ${parser.isQuotaFull(quotedMsg.body)})`);
+                    }
+                }
+            } catch (err) {
+                // Abaikan error quoted message fetch
+            }
+        }
+
+        if (isVerifyMsg || isQuotedShiftWithFullQuota) {
             console.log('[DETEKSI] Pesan hasil verifikasi/seleksi teridentifikasi!');
             
             // Proses verifikasi secara sinkron menggunakan cache lokal (bebas dari getChat)
-            const verResult = verification.processVerification(messageText, cache);
+            const verResult = verification.processVerification(textToVerify, cache);
             
             if (verResult.processed) {
                 console.log(`[VERIFIKASI] Status terupdate menjadi: ${verResult.status}. Alasan: ${verResult.reason}`);

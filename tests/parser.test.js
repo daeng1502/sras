@@ -145,4 +145,26 @@ describe('Parser Service Tests', () => {
             expect(result).toContain('11.00 : 2 orang\n1. Daeng 1234567');
         });
     });
+
+    describe('isQuotaFull', () => {
+        test('harus mengembalikan true jika jumlah pendaftar sama dengan kuota', () => {
+            const list = `09.00 : 2 orang\n1. budi 12345\n2. andi 87654`;
+            expect(parser.isQuotaFull(list)).toBe(true);
+        });
+
+        test('harus mengembalikan true jika jumlah pendaftar melebihi kuota', () => {
+            const list = `09.00 : 2 orang\n1. budi 12345\n2. andi 87654\n3. cika 55555`;
+            expect(parser.isQuotaFull(list)).toBe(true);
+        });
+
+        test('harus mengembalikan false jika jumlah pendaftar kurang dari kuota', () => {
+            const list = `09.00 : 2 orang\n1. budi 12345`;
+            expect(parser.isQuotaFull(list)).toBe(false);
+        });
+
+        test('harus mengembalikan false jika format kuota tidak valid atau tidak ditemukan', () => {
+            const list = `09.00 Pagi\n1. budi 12345`;
+            expect(parser.isQuotaFull(list)).toBe(false);
+        });
+    });
 });

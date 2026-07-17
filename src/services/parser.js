@@ -341,9 +341,43 @@ function registerUserInTemplate(text, userName, userOptId) {
     return null;
 }
 
+/**
+ * Memeriksa apakah kuota peserta pendaftaran pada teks list telah terisi penuh.
+ * @param {string} text - Teks list pendaftaran
+ * @returns {boolean}
+ */
+function isQuotaFull(text) {
+    if (!text) return false;
+
+    // 1. Ekstrak judul shift (baris utama, contoh: "11.00 : 2 orang")
+    const header = extractShiftTitle(text);
+    if (!header || header === 'Shift Tidak Dikenal') return false;
+
+    // 2. Cari angka kuota menggunakan RegEx penangkap angka kuota orang/org/pax
+    const quotaMatch = header.match(/:?\s*(\d+)\s*(?:orang|org|pax)/i);
+    if (!quotaMatch) return false;
+
+    const quotaLimit = parseInt(quotaMatch[1], 10);
+    if (isNaN(quotaLimit) || quotaLimit <= 0) return false;
+
+    // 3. Hitung jumlah nama terdaftar di list (baris yang diawali angka, contoh: "1. Budi")
+    const lines = text.split('\n');
+    let registeredCount = 0;
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed === header.trim()) continue; // Lewati baris judul shift/header
+        if (/^\s*\d+\.\s*/.test(trimmed)) {
+            registeredCount++;
+        }
+    }
+
+    return registeredCount >= quotaLimit;
+}
+
 module.exports = {
     isShiftOpening,
     isUserAlreadyRegistered,
     extractShiftTitle,
-    registerUserInTemplate
+    registerUserInTemplate,
+    isQuotaFull
 };
