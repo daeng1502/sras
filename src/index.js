@@ -8,6 +8,7 @@ const parser = require('./services/parser');
 const registrator = require('./services/registrator');
 const verification = require('./services/verification');
 const historyLogger = require('./services/history');
+const storeManager = require('./services/store');
 
 /**
  * Mendeteksi lokasi Chromium secara otomatis di lingkungan Android Termux
@@ -473,18 +474,23 @@ async function startSystem() {
         console.log('==================================================');
         console.log('1. Mulai Monitoring & Otomasi');
         console.log('2. Atur Profil & Konfigurasi (.env)');
-        console.log('3. Logout WhatsApp (Hapus Sesi)');
-        console.log('4. Keluar');
+        console.log('3. Reset Status Harian (Uji Coba Ulang)');
+        console.log('4. Logout WhatsApp (Hapus Sesi)');
+        console.log('5. Keluar');
         console.log('==================================================');
 
-        const choice = await askQuestion('Pilih Menu (1-4): ');
+        const choice = await askQuestion('Pilih Menu (1-5): ');
         const trimmed = choice.trim();
 
-        if (trimmed === '4') {
+        if (trimmed === '5') {
             console.log('[SYSTEM] Keluar dari program. Sampai jumpa!');
             process.exit(0);
-        } else if (trimmed === '3') {
+        } else if (trimmed === '4') {
             logoutWhatsApp();
+        } else if (trimmed === '3') {
+            storeManager.writeStore(storeManager.defaultStore);
+            console.log('\n[SUKSES] Status pendaftaran hari ini berhasil di-reset menjadi NULL.');
+            console.log('[INFO] Anda sekarang dapat melakukan simulasi pendaftaran ulang hari ini.');
         } else if (trimmed === '2') {
             await showConfigMenu();
         } else if (trimmed === '1') {
