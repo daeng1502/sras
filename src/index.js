@@ -223,12 +223,21 @@ client.on('message', async (msg) => {
             } catch (err) {}
         }
 
-        // 3. Deteksi apakah pengirim adalah salah satu admin yang dipantau (dinamis & fleksibel terhadap suffix @c.us / @lid)
+        // 3. Deteksi apakah pengirim adalah salah satu admin yang dipantau (dinamis & fleksibel terhadap suffix @c.us / @lid / Phone vs LID mapping)
         const senderId = msg.author;
-        const senderNumber = senderId ? senderId.split('@')[0] : '';
+        let senderContactNumber = '';
+        try {
+            const contact = await msg.getContact();
+            senderContactNumber = contact.number || '';
+        } catch (e) {
+            // Fallback jika getContact gagal
+        }
+        const senderIdNumber = senderId ? senderId.split('@')[0] : '';
         const isFromMonitoredAdmin = targetGroupAdmins.some(adminJid => {
             const adminNumber = adminJid.split('@')[0];
-            return adminNumber === senderNumber;
+            return adminJid === senderId || 
+                   adminNumber === senderIdNumber || 
+                   (senderContactNumber && adminNumber === senderContactNumber);
         });
 
         // CETAK LOG PEMBANTU DIAGNOSTIK
