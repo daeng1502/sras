@@ -203,10 +203,13 @@ client.on('message', async (msg) => {
         if (!targetGroupJid) {
             try {
                 const chat = await msg.getChat();
+                console.log(`[DIAGNOSTIK] Membandingkan grup: "${chat.name}" vs target filter: "${config.targetGroupName}"`);
                 if (chat.isGroup && chat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
                     targetGroupJid = msg.from;
                     console.log(`[SYSTEM] Target grup terdeteksi secara otomatis dan terverifikasi! JID: "${targetGroupJid}"`);
                     await refreshGroupAdmins(msg.from);
+                } else {
+                    console.log(`[DIAGNOSTIK] Nama grup tidak cocok.`);
                 }
             } catch (err) {
                 // Abaikan jika getChat gagal di awal
