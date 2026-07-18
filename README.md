@@ -91,12 +91,15 @@ flowchart TD
 
 ### C. Langkah Instalasi di Android Termux (Portabel di HP)
 Aplikasi ini dioptimalkan penuh agar dapat berjalan di Android Termux secara portabel menggunakan headless Chromium.
-1.  Instal Termux dari F-Droid, lalu jalankan skrip instalasi otomatis yang disediakan di folder proyek:
+1.  Unduh dan instal aplikasi **Termux** serta aplikasi pendamping **Termux:API** dari [F-Droid](https://f-droid.org/) (pastikan keduanya diunduh dari F-Droid agar tanda tangan paket/signatures cocok dan kompatibel).
+2.  Buka Termux di HP Anda, kloning proyek ini, dan jalankan skrip instalasi otomatis:
     ```bash
+    git clone https://github.com/daeng1502/sras.git
+    cd sras
     chmod +x termux-setup.sh
     ./termux-setup.sh
     ```
-2.  Skrip tersebut akan otomatis mengonfigurasi Node.js, Git, Chromium, dan variabel lingkungan Puppeteer yang sesuai untuk Termux.
+3.  Skrip tersebut akan otomatis menginstal Node.js, Git, paket CLI `termux-api`, Chromium, serta mengonfigurasi variabel lingkungan Puppeteer secara otomatis.
 
 ---
 
