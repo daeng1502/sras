@@ -158,11 +158,20 @@ let isAutoSendEnabled = true;
 
 // State & Fungsionalitas Dasbor Kartu Vertikal
 const recentLogs = [];
+let redrawTimeout = null;
+
+function triggerRedraw() {
+    if (redrawTimeout) clearTimeout(redrawTimeout);
+    redrawTimeout = setTimeout(() => {
+        redrawDashboard();
+    }, 50); // Jeda 50ms untuk mengonsolidasikan cetakan simultan
+}
+
 function logToDashboard(message) {
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
     recentLogs.push(`[${timeStr}] ${message}`);
     if (recentLogs.length > 5) recentLogs.shift();
-    redrawDashboard();
+    triggerRedraw();
 }
 
 function redrawDashboard() {
@@ -274,9 +283,9 @@ client.on('ready', async () => {
     
     logToDashboard('Bot terhubung dan siap memantau grup.');
     
-    // Jalankan pembaruan waktu dasbor otomatis setiap 10 detik
+    // Jalankan pembaruan waktu dasbor otomatis setiap 10 detik dengan aman
     setInterval(() => {
-        redrawDashboard();
+        triggerRedraw();
     }, 10000);
 });
 
