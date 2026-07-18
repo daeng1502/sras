@@ -9,6 +9,7 @@ sras_session_backup/
 # Konfigurasi Sensitif Lingkungan Lokal (Berisi Nomor HP, Nama, & OPT ID)
 .env
 .env.local
+src/profiles/*.json
 # Log Aktivitas & Database Lokal (Agar status login tidak bertabrakan)
 src/database/history.log
 src/database/store.json
