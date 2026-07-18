@@ -196,6 +196,7 @@ let targetGroupJid = null;
 const groupMessageCache = {};
 let isAutoSendEnabled = false;
 let isMultiAccountMode = false;
+let isInteractiveMode = true;
 
 // State & Fungsionalitas Dasbor Kartu Vertikal
 const recentLogs = [];
@@ -339,11 +340,14 @@ async function startSystemMonitoring() {
     }
     console.log(`Grup Target     : ${config.targetGroupName}`);
 
-    const answer = await askQuestion('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ');
-    const inputKeywords = answer.trim()
-        .split(',')
-        .map(kw => kw.trim().toLowerCase())
-        .filter(kw => kw.length > 0);
+    let inputKeywords = [];
+    if (isInteractiveMode) {
+        const answer = await askQuestion('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ');
+        inputKeywords = answer.trim()
+            .split(',')
+            .map(kw => kw.trim().toLowerCase())
+            .filter(kw => kw.length > 0);
+    }
 
     if (inputKeywords.length > 0) {
         config.targetShiftKeywords = inputKeywords;
@@ -353,14 +357,18 @@ async function startSystemMonitoring() {
         console.log('[INFO] Bot dikonfigurasi untuk memantau SEMUA shift (Tanpa filter spesifik).');
     }
 
-    const autoSendAns = await askQuestion('\n[INPUT] Apakah ingin mengaktifkan Kirim Chat Otomatis? (y/N): ');
-    const cleanAutoSend = autoSendAns.trim().toLowerCase();
-    if (cleanAutoSend === 'y' || cleanAutoSend === 'yes') {
-        isAutoSendEnabled = true;
-        console.log('[INFO] MODE OTOMATIS aktif. Bot akan membunyikan alarm dan mengirim pendaftaran berurutan.');
+    if (isInteractiveMode) {
+        const autoSendAns = await askQuestion('\n[INPUT] Apakah ingin mengaktifkan Kirim Chat Otomatis? (y/N): ');
+        const cleanAutoSend = autoSendAns.trim().toLowerCase();
+        if (cleanAutoSend === 'y' || cleanAutoSend === 'yes') {
+            isAutoSendEnabled = true;
+            console.log('[INFO] MODE OTOMATIS aktif. Bot akan membunyikan alarm dan mengirim pendaftaran berurutan.');
+        } else {
+            isAutoSendEnabled = false;
+            console.log('[INFO] MODE PANTAU SAJA aktif. Bot hanya akan membunyikan alarm tanpa mengirim chat otomatis.');
+        }
     } else {
         isAutoSendEnabled = false;
-        console.log('[INFO] MODE PANTAU SAJA aktif. Bot hanya akan membunyikan alarm tanpa mengirim chat otomatis.');
     }
 
     historyLogger.logEvent('SYSTEM', 'Bot mulai memantau grup.');
@@ -1526,6 +1534,7 @@ async function startSystem() {
                 
                 // Nilai default autobot diset ke Single-Account sesuai permintaan
                 isMultiAccountMode = false;
+                isInteractiveMode = false;
                 
                 console.log(`[AUTOBOT] Mode: ${isMultiAccountMode ? 'Dual-Account' : 'Single-Account'}`);
                 client1.initialize().catch(err => {
