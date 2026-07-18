@@ -807,13 +807,23 @@ async function handleWhatsAppCommand(msg) {
 }
 
 // Mendengarkan pesan masuk & pesan keluar menggunakan client1 selaku Master
-if (client1) {
-    client1.on('message_create', async (msg) => {
+// Daftarkan pengendali perintah jarak jauh (#command) untuk seluruh client yang aktif secara mandiri
+clients.forEach((client) => {
+    client.on('message_create', async (msg) => {
         try {
             if (msg.fromMe && msg.body && msg.body.trim().startsWith('#')) {
                 await handleWhatsAppCommand(msg);
-                return;
             }
+        } catch (e) {
+            logToDashboard(`Gagal memproses perintah: ${e.message}`);
+        }
+    });
+});
+
+// Mendengarkan pesan masuk & pesan keluar menggunakan client1 selaku Master untuk pemantauan grup
+if (client1) {
+    client1.on('message_create', async (msg) => {
+        try {
 
             const groupJid = msg.from.endsWith('@g.us') ? msg.from : (msg.to && msg.to.endsWith('@g.us') ? msg.to : null);
             if (!groupJid) return;
