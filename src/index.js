@@ -143,15 +143,28 @@ const client2 = new Client({
 
 function setupClientListeners(clientInstance, userLabel, userHp) {
     clientInstance.on('qr', async (qr) => {
-        if (userHp) {
-            console.log(`\n[LINKING - ${userLabel}] Meminta kode penautan untuk nomor HP: ${userHp}...`);
+        let activeHp = userHp;
+
+        // Jika single account, nomor HP kosong, dan mode interaktif, minta masukan dari pengguna di terminal
+        if (!activeHp && !isMultiAccountMode && isInteractiveMode) {
+            const answer = await askQuestion(`\n[INPUT - ${userLabel}] Masukkan nomor HP untuk menautkan perangkat (contoh: 628123456789, tekan ENTER untuk QR Code): `);
+            const cleanAnswer = answer.replace(/[^0-9]/g, '');
+            if (cleanAnswer) {
+                activeHp = cleanAnswer.startsWith('0') ? '62' + cleanAnswer.slice(1) : cleanAnswer;
+                saveToEnv('USER1_HP', activeHp);
+                console.log(`[INFO] Nomor HP disimpan: ${activeHp}`);
+            }
+        }
+
+        if (activeHp) {
+            console.log(`\n[LINKING - ${userLabel}] Meminta kode penautan untuk nomor HP: ${activeHp}...`);
             try {
                 let code = null;
                 let retries = 3;
                 while (retries > 0) {
                     try {
                         await new Promise(resolve => setTimeout(resolve, 3000));
-                        code = await clientInstance.requestPairingCode(userHp);
+                        code = await clientInstance.requestPairingCode(activeHp);
                         break;
                     } catch (retryErr) {
                         retries--;
