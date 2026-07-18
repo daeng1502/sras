@@ -726,9 +726,9 @@ async function handleWhatsAppCommand(msg) {
                     const pages = await targetClient.pupBrowser.pages();
                     const page = pages.find(p => p.url().includes('web.whatsapp.com'));
                     if (page) {
-                        const ssBuffer = await page.screenshot({ type: 'png' });
-                        const base64 = ssBuffer.toString('base64');
-                        const media = new MessageMedia('image/png', base64, 'screenshot.png');
+                        const ssBuffer = await page.screenshot({ type: 'jpeg', quality: 80 });
+                        const base64 = ssBuffer.toString('base64').replace(/\s+/g, '');
+                        const media = new MessageMedia('image/jpeg', base64, 'screenshot.jpg');
                         await msg.reply(media);
                         logToDashboard(`Screenshot ${targetClient.profile.name} berhasil terkirim.`);
                         return;
