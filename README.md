@@ -34,7 +34,7 @@ Dengan menggabungkan kecepatan respons tingkat milidetik, kecerdasan buatan dala
 *   **🚨 Alarm Suara Lokal & Webhook IFTTT**
     Membunyikan alarm suara laptop/PC saat pendaftaran dikirim dan saat status Anda dinyatakan **ACCEPTED** (diterima kerja) agar Anda tidak melewatkan panggilan kerja secara fisik, serta mendukung integrasi notifikasi HP.
 *   **🖥️ Dasbor CLI Interaktif & Wizard Admin Otomatis**
-    Dilengkapi menu CLI dasbor utama untuk mempermudah operasional: mengubah nama/OPT ID langsung dari terminal, meriset status harian, hingga wizard rekam ID admin grup secara otomatis.
+    Dilengkapi menu CLI dasbor utama untuk mempermudah operasional: mengubah nama/OPS ID langsung dari terminal, meriset status harian, hingga wizard rekam ID admin grup secara otomatis.
 
 ---
 
@@ -51,7 +51,7 @@ flowchart TD
     D -->|Ya| E{Apakah Nama Sudah Terdaftar di List?}
     E -->|Ya| F[Set Status: WAITING_VERIFICATION]
     F --> A
-    E -->|Tidak| G[Ambil List Terakhir & Sisipkan Nama + OPT ID]
+    E -->|Tidak| G[Ambil List Terakhir & Sisipkan Nama + OPS ID]
     G --> H[Simulasi Ketik 1-1.8 Detik]
     H --> I[Kirim Pendaftaran ke Grup & Bunyikan Alarm]
     I --> F
@@ -110,7 +110,7 @@ Meskipun disarankan menggunakan **Menu CLI Pilihan 2** untuk pengisian otomatis 
 ```env
 # Profil Pengguna
 USER_NAME="Budi Santoso"       # Nama lengkap Anda yang akan ditulis di list pendaftaran
-USER_OPT_ID="OPT-9982"         # OPT ID Anda (misal ID Karyawan/Operator)
+USER_OPT_ID="9982110"          # OPS ID Anda (angka saja, tanpa imbuhan huruf/kode)
 USER_HP="628123456789"         # Nomor HP WhatsApp Anda (untuk Pairing Code, diawali kode negara tanpa +)
 
 # Target Pemantauan WhatsApp
