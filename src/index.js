@@ -145,14 +145,23 @@ function setupClientListeners(clientInstance, userLabel, userHp) {
     clientInstance.on('qr', async (qr) => {
         let activeHp = userHp;
 
-        // Jika single account, nomor HP kosong, dan mode interaktif, minta masukan dari pengguna di terminal
-        if (!activeHp && !isMultiAccountMode && isInteractiveMode) {
-            const answer = await askQuestion(`\n[INPUT - ${userLabel}] Masukkan nomor HP untuk menautkan perangkat (contoh: 628123456789, tekan ENTER untuk QR Code): `);
-            const cleanAnswer = answer.replace(/[^0-9]/g, '');
-            if (cleanAnswer) {
-                activeHp = cleanAnswer.startsWith('0') ? '62' + cleanAnswer.slice(1) : cleanAnswer;
-                saveToEnv('USER1_HP', activeHp);
-                console.log(`[INFO] Nomor HP disimpan: ${activeHp}`);
+        // Jika single account dan dalam mode interaktif, tanyakan kepada pengguna opsi pengelolaan nomor HP
+        if (!isMultiAccountMode && isInteractiveMode) {
+            const currentHp = activeHp ? activeHp : 'Kosong (Menggunakan QR)';
+            const answer = await askQuestion(`\n[INPUT - ${userLabel}] Nomor HP saat ini: ${currentHp}\nMasukkan nomor HP baru untuk menautkan perangkat\n(Tekan ENTER untuk tetap menggunakan nomor ini, atau ketik 'qr' untuk masuk dengan QR Code): `);
+            const cleanAnswer = answer.trim().toLowerCase();
+            
+            if (cleanAnswer === 'qr') {
+                activeHp = '';
+                saveToEnv('USER1_HP', '');
+                console.log('[INFO] Nomor HP dikosongkan. Bot akan memuat QR Code.');
+            } else if (cleanAnswer !== '') {
+                const cleanNumber = cleanAnswer.replace(/[^0-9]/g, '');
+                if (cleanNumber) {
+                    activeHp = cleanNumber.startsWith('0') ? '62' + cleanNumber.slice(1) : cleanNumber;
+                    saveToEnv('USER1_HP', activeHp);
+                    console.log(`[INFO] Nomor HP disimpan: ${activeHp}`);
+                }
             }
         }
 
