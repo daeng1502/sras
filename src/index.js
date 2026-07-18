@@ -426,9 +426,133 @@ async function triggerAccount2Registration(baseText, groupJid) {
     }
 }
 
+async function handleWhatsAppCommand(msg) {
+    const rawText = msg.body.trim();
+    const parts = rawText.split(/\s+/);
+    const command = parts[0].toLowerCase();
+    const args = parts.slice(1).join(' ');
+
+    let replyText = '';
+
+    switch (command) {
+        case '#help':
+            replyText = `📋 *KENDALI BOT SRAS (HELP)*\n` +
+                        `• \`#status\` - Cek status bot & profil\n` +
+                        `• \`#keyword <kw1, kw2>\` - Set kata kunci shift\n` +
+                        `• \`#mode <single/dual>\` - Ganti mode akun\n` +
+                        `• \`#autosend <on/off>\` - Toggle kirim pendaftaran otomatis\n` +
+                        `• \`#reset\` - Reset status harian\n` +
+                        `• \`#help\` - Tampilkan bantuan ini`;
+            break;
+
+        case '#status':
+            const store = storeManager.readStore();
+            const s1 = store.user1 || { status: 'NULL', registeredShiftId: null };
+            const s2 = store.user2 || { status: 'NULL', registeredShiftId: null };
+            const kwString = config.targetShiftKeywords && config.targetShiftKeywords.length > 0
+                ? config.targetShiftKeywords.join(', ')
+                : 'Semua Shift (Tanpa Filter)';
+            const sendMode = isAutoSendEnabled ? 'AKTIF (Otomatis)' : 'NONAKTIF (Pantau Saja)';
+            
+            replyText = `🤖 *STATUS MONITORING BOT*\n` +
+                        `• *Mode*: ${isMultiAccountMode ? 'Dual-Account' : 'Single-Account'}\n` +
+                        `• *Kirim Chat*: ${sendMode}\n` +
+                        `• *Kata Kunci*: ${kwString}\n` +
+                        `• *Grup Target*: ${targetGroupJid || config.targetGroupName || 'Belum Terkunci'}\n\n` +
+                        `*AKUN 1 (MASTER)*:\n` +
+                        `• Nama: ${config.user1.name}\n` +
+                        `• Status: [ ${s1.status} ]\n` +
+                        `• Shift Terdaftar: ${s1.registeredShiftId || '-'}\n\n`;
+            
+            if (isMultiAccountMode) {
+                replyText += `*AKUN 2 (MEMBER)*:\n` +
+                             `• Nama: ${config.user2.name}\n` +
+                             `• Status: [ ${s2.status} ]\n` +
+                             `• Shift Terdaftar: ${s2.registeredShiftId || '-'}`;
+            }
+            break;
+
+        case '#keyword':
+            if (!args) {
+                config.targetShiftKeywords = [];
+                replyText = `✅ *Kata kunci shift dikosongkan.* Bot sekarang memantau semua shift.`;
+            } else {
+                const keywords = args.split(',')
+                    .map(kw => kw.trim().toLowerCase())
+                    .filter(kw => kw.length > 0);
+                config.targetShiftKeywords = keywords;
+                replyText = `✅ *Kata kunci shift diperbarui*: "${keywords.join(', ')}"`;
+            }
+            triggerRedraw();
+            break;
+
+        case '#mode':
+            const targetMode = args.toLowerCase().trim();
+            if (targetMode === 'single') {
+                isMultiAccountMode = false;
+                replyText = `✅ *Mode diubah ke Single-Account.* Bot hanya memantau Akun 1.`;
+            } else if (targetMode === 'dual' || targetMode === 'multi') {
+                if (!config.user2.name || !config.user2.optId) {
+                    replyText = `⚠️ *Gagal*: Konfigurasi Akun 2 di .env belum lengkap!`;
+                } else {
+                    isMultiAccountMode = true;
+                    replyText = `✅ *Mode diubah ke Dual-Account.* Bot memantau Akun 1 & Akun 2.`;
+                    if (!isClient2Ready) {
+                        logToDashboard('Menginisialisasi Akun 2 via perintah chat...');
+                        client2.initialize().catch(err => {
+                            logToDashboard(`Gagal inisialisasi Akun 2: ${err.message}`);
+                        });
+                    }
+                }
+            } else {
+                replyText = `⚠️ *Format Salah.* Gunakan: \`#mode single\` atau \`#mode dual\``;
+            }
+            triggerRedraw();
+            break;
+
+        case '#autosend':
+            const state = args.toLowerCase().trim();
+            if (state === 'on' || state === '1' || state === 'true') {
+                isAutoSendEnabled = true;
+                replyText = `✅ *Kirim Chat Otomatis AKTIF.* Bot akan otomatis mendaftar.`;
+            } else if (state === 'off' || state === '0' || state === 'false') {
+                isAutoSendEnabled = false;
+                replyText = `✅ *Kirim Chat Otomatis NONAKTIF.* Bot hanya membunyikan alarm.`;
+            } else {
+                replyText = `⚠️ *Format Salah.* Gunakan: \`#autosend on\` atau \`#autosend off\``;
+            }
+            triggerRedraw();
+            break;
+
+        case '#reset':
+            storeManager.writeStore(storeManager.defaultStore);
+            replyText = `✅ *Status pendaftaran harian berhasil di-reset menjadi NULL.* Anda sekarang dapat mensimulasikan ulang pendaftaran hari ini.`;
+            triggerRedraw();
+            break;
+
+        default:
+            return;
+    }
+
+    if (replyText) {
+        try {
+            await msg.reply(replyText);
+            logToDashboard(`Perintah WA dieksekusi: ${command}`);
+        } catch (e) {
+            logToDashboard(`Gagal membalas perintah WA: ${e.message}`);
+        }
+    }
+}
+
 // Mendengarkan pesan masuk & pesan keluar (message_create) menggunakan client1 selaku Master
 client1.on('message_create', async (msg) => {
     try {
+        // Intersept perintah kendali jarak jauh (WhatsApp Command Center) dari pemilik bot
+        if (msg.fromMe && msg.body && msg.body.trim().startsWith('#')) {
+            await handleWhatsAppCommand(msg);
+            return;
+        }
+
         // 1. Validasi apakah pesan berasal dari grup (Offline & cepat)
         const groupJid = msg.from.endsWith('@g.us') ? msg.from : (msg.to && msg.to.endsWith('@g.us') ? msg.to : null);
         historyLogger.logEvent('DEBUG-MSG', `message_create terpicu | fromMe: ${msg.fromMe} | from: ${msg.from} | to: ${msg.to} | groupJid: ${groupJid} | idExists: ${!!msg.id} | idSerialized: ${msg.id ? msg.id._serialized : 'undefined'} | body: "${msg.body ? msg.body.replace(/\n/g, ' ').slice(0, 50) : ''}..."`);
