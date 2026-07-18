@@ -457,8 +457,13 @@ async function handleWhatsAppCommand(msg) {
                         `• \`#keyword <kw1, kw2>\` - Set kata kunci shift\n` +
                         `• \`#mode <single/dual>\` - Ganti mode akun\n` +
                         `• \`#autosend <on/off>\` - Toggle kirim pendaftaran otomatis\n` +
+                        `• \`#setgroup <Nama/JID>\` - Ganti grup WA target\n` +
                         `• \`#reset\` - Reset status harian\n` +
                         `• \`#ss [1/2]\` - Kirim screenshot halaman WA Web\n` +
+                        `• \`#ping\` - Cek latensi respon bot\n` +
+                        `• \`#log\` - Kirim 10 baris riwayat log terakhir\n` +
+                        `• \`#uptime\` - Cek pemakaian RAM & durasi aktif bot\n` +
+                        `• \`#restart\` - Restart bot secara jarak jauh\n` +
                         `• \`#help\` - Tampilkan bantuan ini`;
             break;
 
@@ -522,7 +527,7 @@ async function handleWhatsAppCommand(msg) {
                     }
                 }
             } else {
-                replyText = `⚠️ *Format Salah.* Gunakan: \`#mode single\` atau \`#mode dual\``;
+                replyText = `⚠️ *Format Salah.* Gunakan: \`#mode single\` or \`#mode dual\``;
             }
             triggerRedraw();
             break;
@@ -545,6 +550,77 @@ async function handleWhatsAppCommand(msg) {
             storeManager.writeStore(storeManager.defaultStore);
             replyText = `✅ *Status pendaftaran harian berhasil di-reset menjadi NULL.* Anda sekarang dapat mensimulasikan ulang pendaftaran hari ini.`;
             triggerRedraw();
+            break;
+
+        case '#setgroup':
+            if (!args) {
+                replyText = `⚠️ *Format Salah.* Gunakan: \`#setgroup <Nama atau JID Grup>\``;
+            } else {
+                const targetGroup = args.trim();
+                saveToEnv('TARGET_GROUP_NAME', targetGroup);
+                logToDashboard(`Grup target diubah via chat menjadi: "${targetGroup}"`);
+                replyText = `✅ *Grup target diperbarui*: "${targetGroup}". Bot sedang mengunci JID grup baru...`;
+                
+                checkTargetJid().then(() => {
+                    triggerRedraw();
+                }).catch(e => {
+                    logToDashboard(`Gagal mengunci JID grup baru: ${e.message}`);
+                });
+            }
+            break;
+
+        case '#ping':
+            const msgTimestampMs = msg.timestamp * 1000;
+            const latency = Date.now() - msgTimestampMs;
+            replyText = `🏓 *PONG!*\n• *Latensi Respon*: ${latency} ms\n• *Status Bot*: Aktif & Memantau`;
+            break;
+
+        case '#log':
+            if (!fs.existsSync(config.historyPath)) {
+                replyText = `⚠️ *Gagal*: File log tidak ditemukan.`;
+                break;
+            }
+            try {
+                const logs = fs.readFileSync(config.historyPath, 'utf8');
+                const logLines = logs.trim().split('\n');
+                const lastLines = logLines.slice(-10).join('\n');
+                replyText = `📋 *10 BARIS LOG TERAKHIR*:\n\`\`\`${lastLines}\`\`\``;
+            } catch (err) {
+                replyText = `⚠️ *Gagal membaca log*: ${err.message}`;
+            }
+            break;
+
+        case '#uptime':
+            const uptimeSeconds = process.uptime();
+            const days = Math.floor(uptimeSeconds / (3600 * 24));
+            const hours = Math.floor((uptimeSeconds % (3600 * 24)) / 3600);
+            const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+            const seconds = Math.floor(uptimeSeconds % 60);
+
+            const memoryUsage = process.memoryUsage();
+            const rssMb = (memoryUsage.rss / (1024 * 1024)).toFixed(2);
+            const heapTotalMb = (memoryUsage.heapTotal / (1024 * 1024)).toFixed(2);
+            const heapUsedMb = (memoryUsage.heapUsed / (1024 * 1024)).toFixed(2);
+
+            replyText = `🤖 *SISTEM STATS / UPTIME*\n` +
+                        `• *Uptime*: ${days} Hari, ${hours} Jam, ${minutes} Menit, ${seconds} Detik\n` +
+                        `• *RSS Memory*: ${rssMb} MB\n` +
+                        `• *Heap Memory*: ${heapUsedMb} / ${heapTotalMb} MB\n` +
+                        `• *Platform*: ${process.platform} (${process.arch})`;
+            break;
+
+        case '#restart':
+            replyText = `🤖 *Bot sedang memulai ulang (shutdown)...* Jika dijalankan dengan PM2 atau skrip auto-restart, bot akan aktif kembali secara bersih dalam beberapa detik.`;
+            try {
+                await msg.reply(replyText);
+                logToDashboard('Bot di-restart via perintah chat.');
+                setTimeout(() => {
+                    process.exit(0);
+                }, 2000);
+                return;
+            } catch (err) {
+                process.exit(0);
+            }
             break;
 
         case '#ss':
