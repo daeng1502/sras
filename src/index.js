@@ -1496,6 +1496,74 @@ async function showBackupMenu() {
  * Alur utama inisialisasi sistem dengan menu dasbor utama
  */
 async function startSystem() {
+    // Cek kelayakan boot otomatis (apakah Akun 1 sudah dikonfigurasi dasar)
+    const hasBasicConfig = config.user1.name && config.user1.optId && config.targetGroupName;
+    
+    if (hasBasicConfig) {
+        console.clear();
+        console.log('\n==================================================');
+        console.log('       AUTOBOT STARTUP - BOT REGISTRASI SHIFT');
+        console.log('==================================================');
+        console.log('Ketik "m" dan tekan ENTER untuk masuk Menu Utama manual.');
+        console.log('Jika tidak ada respon, bot akan otomatis memulai monitoring...\n');
+
+        let countdown = 5;
+        let cancelled = false;
+
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+
+        const timer = setInterval(() => {
+            if (countdown > 0 && !cancelled) {
+                process.stdout.write(`\r⏱️ [AUTOBOT] Memulai monitoring otomatis dalam ${countdown} detik... `);
+                countdown--;
+            } else if (!cancelled) {
+                clearInterval(timer);
+                rl.close();
+                process.stdout.write('\r\n[AUTOBOT] Memulai inisialisasi otomatis...\n');
+                
+                // Tentukan mode berdasarkan ketersediaan config Akun 2
+                if (config.user2.name && config.user2.optId) {
+                    isMultiAccountMode = true;
+                } else {
+                    isMultiAccountMode = false;
+                }
+                
+                console.log(`[AUTOBOT] Mode: ${isMultiAccountMode ? 'Dual-Account' : 'Single-Account'}`);
+                client1.initialize().catch(err => {
+                    console.error('[ERROR] Gagal mengaktifkan client 1 secara otomatis:', err);
+                });
+            }
+        }, 1000);
+
+        await new Promise((resolve) => {
+            rl.on('line', (line) => {
+                if (line.trim().toLowerCase() === 'm') {
+                    cancelled = true;
+                    clearInterval(timer);
+                    rl.close();
+                    console.log('\n[STARTUP] Membatalkan auto-boot. Memuat Menu Utama...');
+                    resolve();
+                }
+            });
+            setTimeout(() => {
+                if (!cancelled) {
+                    resolve();
+                }
+            }, 6000);
+        });
+
+        if (cancelled) {
+            await showMainMenuLoop();
+        }
+    } else {
+        await showMainMenuLoop();
+    }
+}
+
+async function showMainMenuLoop() {
     while (true) {
         console.clear();
         console.log('\n==================================================');
