@@ -29,9 +29,10 @@ function isVerificationMessage(text) {
  * Memproses pesan hasil seleksi dari admin dan memperbarui status pengguna.
  * @param {string} text - Teks pesan dari admin
  * @param {Array} cache - Larik cache pesan terakhir untuk pencarian context
+ * @param {string|null} quotedText - Teks pesan yang direply oleh admin
  * @returns {Object} - { processed: boolean, status: string|null, reason: string }
  */
-function processVerification(text, cache = null) {
+function processVerification(text, cache = null, quotedText = null) {
     const store = storeManager.readStore();
     
     // Hanya memproses verifikasi jika status pengguna saat ini sedang menunggu verifikasi
@@ -51,28 +52,59 @@ function processVerification(text, cache = null) {
         };
     }
 
+    const cleanUserName = config.userName.toLowerCase().trim();
+    const cleanOptId = config.userOptId.toLowerCase().trim();
+
     let textToAnalyze = text;
     const lowerText = text.toLowerCase().trim();
     
     // Cek apakah pesan hanyalah pesan konfirmasi "done" pendek tanpa daftar nama
     const isShortDone = lowerText === 'done' || (lowerText.startsWith('done') && text.length < 25 && !text.includes('1.'));
 
-    if (isShortDone && cache && Array.isArray(cache)) {
-        console.log('[VERIFIKASI] Mendeteksi pesan "done" pendek. Mencari daftar nama terakhir di cache lokal...');
-        // Cari dari belakang cache untuk menemukan pesan list pendaftaran terakhir
-        for (let i = cache.length - 1; i >= 0; i--) {
-            const body = cache[i].body || '';
-            if (body.includes('1.') || body.includes('2.')) {
-                console.log('[VERIFIKASI] Menemukan daftar nama terakhir di cache lokal.');
-                textToAnalyze = body;
-                break;
+    if (isShortDone) {
+        let foundNameInQuoted = false;
+        if (quotedText) {
+            console.log('[VERIFIKASI] Mendeteksi pesan "done" pendek dengan reply. Menganalisis pesan yang di-reply...');
+            const lowerQuoted = quotedText.toLowerCase();
+            if (lowerQuoted.includes(cleanUserName) || lowerQuoted.includes(cleanOptId)) {
+                textToAnalyze = quotedText;
+                foundNameInQuoted = true;
+                console.log('[VERIFIKASI] Nama pengguna ditemukan di dalam pesan reply.');
+            } else {
+                console.log('[VERIFIKASI] Nama pengguna tidak ditemukan di dalam pesan reply. Melakukan fallback ke pencarian cache...');
+            }
+        }
+
+        if (!foundNameInQuoted && cache && Array.isArray(cache)) {
+            if (!quotedText) {
+                console.log('[VERIFIKASI] Mendeteksi pesan "done" pendek tanpa reply. Mencari daftar nama terakhir di cache lokal...');
+            }
+            console.log(`[VERIFIKASI] Cache length: ${cache.length}`);
+            const cacheBodies = cache.map((c, idx) => `[${idx}]: "${c.body.replace(/\n/g, ' ').slice(0, 60)}..."`).join(' | ');
+            console.log(`[VERIFIKASI] Cache items: ${cacheBodies}`);
+            historyLogger.logEvent('DEBUG-CACHE', `Cache length: ${cache.length} | Items: ${cacheBodies}`);
+            // Cari dari belakang cache untuk menemukan pesan list pendaftaran terakhir
+            for (let i = cache.length - 1; i >= 0; i--) {
+                const body = cache[i].body || '';
+                const isProbablyList = /^\s*[-*•+\d+.]\s*/m.test(body) || 
+                                       body.toLowerCase().includes('team') || 
+                                       body.toLowerCase().includes(cleanUserName) || 
+                                       body.toLowerCase().includes(cleanOptId);
+                if (isProbablyList) {
+                    console.log('[VERIFIKASI] Menemukan daftar nama terakhir di cache lokal.');
+                    textToAnalyze = body;
+                    break;
+                }
             }
         }
     }
 
     const lowerTextToAnalyze = textToAnalyze.toLowerCase();
-    const cleanUserName = config.userName.toLowerCase().trim();
-    const cleanOptId = config.userOptId.toLowerCase().trim();
+
+    console.log(`[DIAGNOSTIK-VERIFY] Teks analisis (panjang: ${textToAnalyze.length}):\n${textToAnalyze}`);
+    console.log(`[DIAGNOSTIK-VERIFY] Mencari username: "${cleanUserName}" | OPT ID: "${cleanOptId}"`);
+
+
 
     let newStatus = null;
     let logMessage = '';
@@ -83,6 +115,8 @@ function processVerification(text, cache = null) {
 
     // Cek keberadaan nama/ID pengguna di dalam teks yang dianalisis
     const isNameInText = lowerTextToAnalyze.includes(cleanUserName) || lowerTextToAnalyze.includes(cleanOptId);
+    console.log(`[DIAGNOSTIK-VERIFY] Hasil pencarian nama: ${isNameInText}`);
+
 
     if (isNameInText) {
         if (hasAcceptedSection && hasRejectedSection) {
@@ -134,7 +168,7 @@ function processVerification(text, cache = null) {
             alarm.triggerAlarm('ACCEPTED', store.registeredShiftId || 'Shift Anda');
         }
 
-        historyLogger.logEvent('VERIFY', `Verifikasi selesai: status diubah menjadi ${newStatus}. Detail: ${logMessage}`);
+        historyLogger.logEvent('VERIFY', `Verifikasi selesai: status diubah menjadi ${newStatus}. Detail: ${logMessage} (Analisis textToAnalyze: "${textToAnalyze.replace(/\n/g, ' ')}", userName: "${cleanUserName}", optId: "${cleanOptId}", isNameInText: ${isNameInText})`);
         return {
             processed: true,
             status: newStatus,

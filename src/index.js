@@ -133,6 +133,25 @@ client.on('ready', async () => {
     console.log('\n[READY] WhatsApp Client siap dan aktif!');
     historyLogger.logEvent('SYSTEM', 'Bot terhubung dan siap.');
 
+    try {
+        console.log(`[SYSTEM] Mencari JID grup target "${config.targetGroupName}"...`);
+        if (config.targetGroupName && (config.targetGroupName.endsWith('@g.us') || /^\d+-\d+@g\.us$/.test(config.targetGroupName))) {
+            targetGroupJid = config.targetGroupName;
+            console.log(`[SYSTEM] Target grup berhasil dikunci via JID langsung! JID: "${targetGroupJid}"`);
+        } else {
+            const chats = await client.getChats();
+            const targetChat = chats.find(c => c.isGroup && c.name && c.name.toLowerCase().includes(config.targetGroupName.toLowerCase()));
+            if (targetChat) {
+                targetGroupJid = targetChat.id._serialized;
+                console.log(`[SYSTEM] Target grup berhasil dikunci! JID: "${targetGroupJid}"`);
+            } else {
+                console.log(`[PERINGATAN] Grup dengan nama "${config.targetGroupName}" tidak ditemukan di daftar chat Anda.`);
+            }
+        }
+    } catch (e) {
+        console.log(`[DIAGNOSTIK] Gagal memuat JID grup di awal: ${e.message || e}`);
+    }
+
     console.log('\n==================================================');
     console.log('          MEMULAI MONITORING SHIFT');
     console.log('==================================================');
@@ -169,28 +188,39 @@ client.on('ready', async () => {
     historyLogger.logEvent('SYSTEM', 'Bot mulai memantau grup.');
 });
 
-// Mendengarkan pesan masuk
-client.on('message', async (msg) => {
+// Mendengarkan pesan masuk & pesan keluar (message_create)
+client.on('message_create', async (msg) => {
     try {
         // 1. Validasi apakah pesan berasal dari grup (Offline & cepat)
-        if (!msg.from.endsWith('@g.us')) return;
-
-        console.log(`[DIAGNOSTIK] Menerima pesan di grup JID: "${msg.from}" | Pengirim: "${msg.author}" | Isi: "${msg.body.replace(/\n/g, ' ').slice(0, 60)}..."`);
+        const groupJid = msg.from.endsWith('@g.us') ? msg.from : (msg.to && msg.to.endsWith('@g.us') ? msg.to : null);
+        historyLogger.logEvent('DEBUG-MSG', `message_create terpicu | fromMe: ${msg.fromMe} | from: ${msg.from} | to: ${msg.to} | groupJid: ${groupJid} | idExists: ${!!msg.id} | idSerialized: ${msg.id ? msg.id._serialized : 'undefined'} | body: "${msg.body ? msg.body.replace(/\n/g, ' ').slice(0, 50) : ''}..."`);
+        if (!groupJid) return;
 
         // Inisialisasi cache lokal untuk grup ini jika belum ada
-        if (!groupMessageCache[msg.from]) {
-            groupMessageCache[msg.from] = [];
+        if (!groupMessageCache[groupJid]) {
+            groupMessageCache[groupJid] = [];
         }
         
         // Simpan pesan ke cache lokal grup (untuk sinkronisasi & verifikasi)
-        const cache = groupMessageCache[msg.from];
-        cache.push({
-            body: msg.body,
-            author: msg.author,
-            id: msg.id._serialized,
-            timestamp: Date.now()
-        });
-        if (cache.length > 10) cache.shift(); // Batasi cache hingga 10 pesan terakhir
+        const cache = groupMessageCache[groupJid];
+        
+        // Hindari duplikasi penyimpanan di cache
+        const msgId = (msg.id && msg.id._serialized) ? msg.id._serialized : Math.random().toString(36).slice(2);
+        const isDuplicate = cache.some(m => m.id === msgId || (m.body === msg.body && Math.abs(m.timestamp - Date.now()) < 3000));
+        if (!isDuplicate) {
+            cache.push({
+                body: msg.body,
+                author: msg.author || msg.from,
+                id: msgId,
+                timestamp: Date.now()
+            });
+            if (cache.length > 10) cache.shift(); // Batasi cache hingga 10 pesan terakhir
+        }
+
+        // Jika pesan dikirim oleh bot sendiri, cukup masukkan ke cache lalu hentikan proses
+        if (msg.fromMe) return;
+
+        console.log(`[DIAGNOSTIK] Menerima pesan di grup JID: "${msg.from}" | Pengirim: "${msg.author}" | Isi: "${msg.body.replace(/\n/g, ' ').slice(0, 60)}..."`);
 
         // 2. Deteksi apakah pengirim adalah salah satu admin yang dipantau (dinamis & fleksibel terhadap suffix @c.us / @lid / Phone vs LID mapping)
         const senderId = msg.author;
@@ -202,28 +232,89 @@ client.on('message', async (msg) => {
             // Fallback jika getContact gagal
         }
         const senderIdNumber = senderId ? senderId.split('@')[0] : '';
-        const isFromMonitoredAdmin = config.monitoredAdmins.some(adminJid => {
+        let isFromMonitoredAdmin = config.monitoredAdmins.some(adminJid => {
             const adminNumber = adminJid.split('@')[0];
             return adminJid === senderId || 
                    adminNumber === senderIdNumber || 
                    (senderContactNumber && adminNumber === senderContactNumber);
         });
 
-        // 3. Deteksi otomatis Target Group JID jika belum teridentifikasi (hanya jika pesan dikirim oleh Admin Monitored)
-        if (isFromMonitoredAdmin && !targetGroupJid) {
-            try {
-                const chat = await msg.getChat();
-                console.log(`[DIAGNOSTIK] Membandingkan grup: "${chat.name}" vs target filter: "${config.targetGroupName}"`);
-                if (chat.isGroup && chat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
+        // 3. Deteksi Otomatis Target Group JID & Perekaman Admin Dinamis Selama Monitoring
+        let isMessageFromTargetGroup = false;
+        if (targetGroupJid && msg.from === targetGroupJid) {
+            isMessageFromTargetGroup = true;
+        } else {
+            // Cek apakah TARGET_GROUP_NAME diatur sebagai JID langsung
+            if (config.targetGroupName && (config.targetGroupName.endsWith('@g.us') || /^\d+-\d+@g\.us$/.test(config.targetGroupName))) {
+                if (msg.from === config.targetGroupName) {
                     targetGroupJid = msg.from;
-                    console.log(`[SYSTEM] Target grup terdeteksi secara otomatis dan terverifikasi! JID: "${targetGroupJid}"`);
-                } else {
-                    console.log(`[DIAGNOSTIK] Nama grup tidak cocok.`);
+                    isMessageFromTargetGroup = true;
                 }
-            } catch (err) {
-                // Fallback jika getChat gagal
-                targetGroupJid = msg.from;
-                console.log(`[SYSTEM] Gagal memvalidasi nama grup secara online (CDP error). Menetapkan JID: "${targetGroupJid}" secara otomatis.`);
+            } else if (!targetGroupJid) {
+                try {
+                    const chats = await client.getChats();
+                    const currentChat = chats.find(c => c.id._serialized === msg.from);
+                    if (currentChat && currentChat.isGroup && currentChat.name && currentChat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
+                        targetGroupJid = msg.from;
+                        isMessageFromTargetGroup = true;
+                        console.log(`[SYSTEM] Target grup terdeteksi secara otomatis! JID: "${targetGroupJid}"`);
+                    }
+                } catch (err) {
+                    // Abaikan secara aman
+                }
+            }
+        }
+
+        if (isMessageFromTargetGroup && !isFromMonitoredAdmin) {
+            const isPotentialShift = parser.isShiftOpening(msg.body);
+            let isPotentialVerification = verification.isVerificationMessage(msg.body);
+
+            // Cek apakah pesan verifikasi berupa reply ke list shift yang penuh
+            if (msg.hasQuotedMsg && !isPotentialVerification) {
+                try {
+                    const quotedMsg = await msg.getQuotedMessage();
+                    if (parser.isShiftOpening(quotedMsg.body) && parser.isQuotaFull(quotedMsg.body)) {
+                        isPotentialVerification = true;
+                    }
+                } catch (e) {}
+            }
+
+            if (isPotentialShift || isPotentialVerification) {
+                // Verifikasi peran admin grup menggunakan cache chat list
+                let isVerifiedAdmin = false;
+                try {
+                    const chats = await client.getChats();
+                    const targetChat = chats.find(c => c.id._serialized === msg.from);
+                    if (targetChat && targetChat.isGroup && targetChat.participants) {
+                        const participant = targetChat.participants.find(p => p.id._serialized === senderId);
+                        if (participant && (participant.isAdmin || participant.isSuperAdmin)) {
+                            isVerifiedAdmin = true;
+                            console.log(`[SYSTEM-VERIFIKASI] Pengirim "${senderId}" terverifikasi sebagai admin grup.`);
+                        }
+                    }
+                } catch (e) {
+                    // Abaikan secara aman
+                }
+
+                // Fallback jika tidak terverifikasi via cache (misal cache chat belum lengkap)
+                if (!isVerifiedAdmin) {
+                    console.log(`[SYSTEM-VERIFIKASI] Mengamankan perekaman admin baru "${senderId}" berdasarkan kecocokan format pesan.`);
+                    isVerifiedAdmin = true;
+                }
+
+                if (isVerifiedAdmin) {
+                    console.log(`\n[SYSTEM] Terdeteksi aktivitas pembukaan/verifikasi shift dari admin baru "${senderId}"!`);
+                    
+                    const currentAdmins = config.monitoredAdmins.map(a => a.split('@')[0]);
+                    const cleanSenderNumber = senderId.split('@')[0];
+                    if (!currentAdmins.includes(cleanSenderNumber)) {
+                        currentAdmins.push(cleanSenderNumber);
+                        const newAdminsString = currentAdmins.join(',');
+                        saveToEnv('MONITORED_ADMINS', newAdminsString);
+                        console.log(`[SUKSES] ID Admin baru "${senderId}" berhasil direkam secara dinamis!`);
+                    }
+                    isFromMonitoredAdmin = true;
+                }
             }
         }
 
@@ -233,7 +324,8 @@ client.on('message', async (msg) => {
         } else {
             const isPotentialShift = parser.isShiftOpening(msg.body);
             if (isPotentialShift) {
-                console.log(`[DIAGNOSTIK] Deteksi pesan pembukaan shift, tapi diabaikan karena pengirim (${senderId}) bukan salah satu Admin yang dipantau (Nomor HP Terjembatani: ${senderContactNumber || 'Gagal'}).`);
+                console.log(`[DIAGNOSTIK] Deteksi pesan pembukaan shift, tapi diabaikan karena pengirim (${senderId}) bukan salah satu Admin yang dipantau.`);
+                console.log(`[DIAGNOSTIK-DETIL] Info JID pesan: group JID="${msg.from}" (target JID saat ini: "${targetGroupJid || 'belum dikunci'}").`);
             }
         }
 
@@ -324,30 +416,31 @@ client.on('message', async (msg) => {
 
         // 5. Deteksi Pengumuman Hasil Verifikasi/Seleksi Admin (Bisa berupa kata kunci atau reply list kuota penuh)
         let isVerifyMsg = verification.isVerificationMessage(messageText);
-        let isQuotedShiftWithFullQuota = false;
-        let textToVerify = messageText;
+        let quotedText = null;
 
         if (msg.hasQuotedMsg) {
             try {
                 const quotedMsg = await msg.getQuotedMessage();
-                if (parser.isShiftOpening(quotedMsg.body)) {
-                    // Jika yang direply adalah shift, ini kandidat verifikasi
-                    if (isVerifyMsg || parser.isQuotaFull(quotedMsg.body)) {
-                        isQuotedShiftWithFullQuota = true;
-                        textToVerify = quotedMsg.body; // Gunakan teks list yang di-reply untuk verifikasi nama
-                        console.log(`[VERIFIKASI] Mendeteksi Admin mereply list shift target. (isVerifyMsg: ${isVerifyMsg}, isQuotaFull: ${parser.isQuotaFull(quotedMsg.body)})`);
-                    }
+                const isList = /^\s*\d+\.\s*/m.test(quotedMsg.body) || quotedMsg.body.toLowerCase().includes('team') || parser.isShiftOpening(quotedMsg.body);
+                if (isList) {
+                    quotedText = quotedMsg.body;
+                    console.log(`[VERIFIKASI] Mendeteksi Admin mereply list pendaftaran.`);
                 }
             } catch (err) {
                 // Abaikan error quoted message fetch
             }
         }
 
-        if (isVerifyMsg || isQuotedShiftWithFullQuota) {
+        let shouldVerify = isVerifyMsg;
+        if (quotedText && (isVerifyMsg || parser.isQuotaFull(quotedText))) {
+            shouldVerify = true;
+        }
+
+        if (shouldVerify) {
             console.log('[DETEKSI] Pesan hasil verifikasi/seleksi teridentifikasi!');
             
-            // Proses verifikasi secara sinkron menggunakan cache lokal (bebas dari getChat)
-            const verResult = verification.processVerification(textToVerify, cache);
+            // Proses verifikasi secara sinkron menggunakan cache lokal & quotedText
+            const verResult = verification.processVerification(messageText, cache, quotedText);
             
             if (verResult.processed) {
                 console.log(`[VERIFIKASI] Status terupdate menjadi: ${verResult.status}. Alasan: ${verResult.reason}`);
@@ -457,6 +550,245 @@ function logoutWhatsApp() {
 }
 
 /**
+ * Wizard untuk merekam JID Admin yang mengirim pesan di grup target secara otomatis.
+ */
+async function recordAdminJidWizard() {
+    console.clear();
+    console.log('\n==================================================');
+    console.log('         WIZARD REKAM ID ADMIN OTOMATIS');
+    console.log('==================================================');
+    console.log(`Grup Target Dipantau: "${config.targetGroupName || '(Kosong)'}"`);
+    console.log('Pastikan Nama Grup Target sudah diatur dengan benar.');
+    console.log('Wizard ini akan mendeteksi chat masuk dari grup target');
+    console.log('dan menyimpan ID Admin pengirimnya secara otomatis.');
+    console.log('==================================================\n');
+
+    if (!config.targetGroupName) {
+        console.log('[PERINGATAN] Nama Grup WA Target masih kosong. Silakan atur terlebih dahulu!');
+        await askQuestion('\nTekan ENTER untuk kembali...');
+        return;
+    }
+
+    console.log('[SYSTEM] Menginisialisasi koneksi WhatsApp sementara...');
+    
+    const tempClient = new Client({
+        authStrategy: new LocalAuth({
+            dataPath: './.wwebjs_auth'
+        }),
+        webVersion: '2.2412.54',
+        webVersionCache: {
+            type: 'remote',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
+        },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        puppeteer: {
+            executablePath: chromiumPath,
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-software-rasterizer',
+                '--disable-extensions',
+                '--mute-audio',
+                '--no-default-browser-check',
+                '--disable-background-networking',
+                '--disable-renderer-backgrounding',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows'
+            ]
+        }
+    });
+
+    let pairingCodePrinted = false;
+
+    tempClient.on('qr', async (qr) => {
+        if (config.userHp && !pairingCodePrinted) {
+            pairingCodePrinted = true;
+            console.log(`\n[LINKING] Meminta kode penautan untuk nomor HP: ${config.userHp}...`);
+            try {
+                let code = null;
+                let retries = 3;
+                while (retries > 0) {
+                    try {
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        code = await tempClient.requestPairingCode(config.userHp);
+                        break;
+                    } catch (retryErr) {
+                        retries--;
+                        if (retries === 0) throw retryErr;
+                        console.log(`[LINKING] API Penautan belum siap. Mencoba kembali (${3 - retries}/3)...`);
+                    }
+                }
+
+                console.log(`\n========================================`);
+                console.log(`   KODE PENAUTAN WHATSAPP: ${code.slice(0, 4)}-${code.slice(4)}`);
+                console.log(`========================================`);
+                console.log(`Silakan buka WhatsApp di HP Anda:`);
+                console.log(`1. Buka Perangkat Tertaut (Linked Devices).`);
+                console.log(`2. Ketuk "Tautkan dengan nomor telepon" (Link with phone number).`);
+                console.log(`3. Masukkan kode di atas.`);
+                console.log(`========================================\n`);
+            } catch (err) {
+                console.error('[ERROR] Gagal meminta kode penautan:', err.message || err);
+                console.log('\n[FALLBACK] Beralih ke QR Code...');
+                qrcode.generate(qr, { small: true });
+            }
+        } else if (!config.userHp) {
+            console.log('\n[QR] Silakan pindai QR Code menggunakan WhatsApp HP Anda:');
+            qrcode.generate(qr, { small: true });
+        }
+    });
+
+    tempClient.on('authenticated', () => {
+        console.log('[AUTH] Autentikasi berhasil!');
+    });
+
+    tempClient.on('auth_failure', (msg) => {
+        console.error('[AUTH] Otentikasi gagal:', msg);
+    });
+
+    let wizardFinished = false;
+
+    return new Promise((resolve) => {
+        let wizardTargetGroupJid = null;
+
+        tempClient.on('message', async (msg) => {
+            if (wizardFinished) return;
+            try {
+                if (!msg.from.endsWith('@g.us')) return;
+
+                console.log(`[WIZARD-DIAGNOSTIK] Menerima pesan di JID: "${msg.from}" | Pengirim: "${msg.author || msg.from}"`);
+
+                let isTargetGroup = false;
+                let matchedGroupName = config.targetGroupName;
+
+                if (wizardTargetGroupJid && msg.from === wizardTargetGroupJid) {
+                    isTargetGroup = true;
+                    console.log(`[WIZARD-DIAGNOSTIK] JID cocok dengan grup target teresolusi ("${wizardTargetGroupJid}").`);
+                } else if (!wizardTargetGroupJid) {
+                    try {
+                        const chats = await tempClient.getChats();
+                        const targetChat = chats.find(c => c.isGroup && c.name && c.name.toLowerCase().includes(config.targetGroupName.toLowerCase()));
+                        if (targetChat) {
+                            wizardTargetGroupJid = targetChat.id._serialized;
+                            matchedGroupName = targetChat.name;
+                            if (msg.from === wizardTargetGroupJid) {
+                                isTargetGroup = true;
+                            }
+                        }
+                    } catch (e) {
+                        // Abaikan secara aman
+                    }
+
+                    if (!isTargetGroup) {
+                        console.log(`[WIZARD-FALLBACK] Memverifikasi grup JID "${msg.from}" berdasarkan aktivitas pesan.`);
+                        isTargetGroup = true;
+                    }
+                }
+
+                if (isTargetGroup) {
+                    const senderId = msg.author;
+                    if (!senderId) {
+                        console.log(`[WIZARD-DIAGNOSTIK] msg.author kosong. Menggunakan msg.from/sender...`);
+                    }
+
+                    let senderContactNumber = '';
+                    try {
+                        const contact = await msg.getContact();
+                        senderContactNumber = contact.number || '';
+                    } catch (e) {}
+
+                    console.log(`\n[WIZARD] Terdeteksi pesan di grup target "${matchedGroupName}"!`);
+                    console.log(`[WIZARD] Pengirim JID: "${senderId || msg.from}"`);
+                    if (senderContactNumber) {
+                        console.log(`[WIZARD] Nomor Kontak: "${senderContactNumber}"`);
+                    }
+
+                    const adminJidClean = senderId || msg.from;
+                    const alreadyExists = config.monitoredAdmins.some(admin => admin.split('@')[0] === adminJidClean.split('@')[0]);
+
+                    if (alreadyExists) {
+                        console.log(`[WIZARD] ID "${adminJidClean}" sudah terdaftar sebagai admin.`);
+                        wizardFinished = true;
+                        console.log('[SYSTEM] Menutup koneksi WhatsApp sementara...');
+                        try {
+                            await tempClient.destroy();
+                        } catch (e) {}
+                        await new Promise(resolveDelay => setTimeout(resolveDelay, 1500));
+                        resolve();
+                    } else {
+                        wizardFinished = true;
+                        console.log(`\n[WIZARD] Menambahkan "${adminJidClean}" ke daftar admin...`);
+                        
+                        const currentAdmins = config.monitoredAdmins.map(a => a.split('@')[0]);
+                        currentAdmins.push(adminJidClean.split('@')[0]);
+                        const newAdminsString = currentAdmins.join(',');
+
+                        saveToEnv('MONITORED_ADMINS', newAdminsString);
+                        console.log(`[SUKSES] ID Admin berhasil disimpan ke .env!`);
+                        console.log(`[INFO] Daftar Admin saat ini: ${newAdminsString}`);
+
+                        console.log('[SYSTEM] Menutup koneksi WhatsApp sementara...');
+                        try {
+                            await tempClient.destroy();
+                        } catch (e) {}
+                        await new Promise(resolveDelay => setTimeout(resolveDelay, 1500));
+                        resolve();
+                    }
+                }
+            } catch (err) {
+                console.error('[ERROR] Wizard gagal memproses pesan:', err);
+            }
+        });
+
+        tempClient.on('ready', async () => {
+            console.log('\n[READY] WhatsApp Client sementara siap!');
+            try {
+                console.log(`[WIZARD] Mencari JID grup target "${config.targetGroupName}" di WhatsApp Anda...`);
+                const chats = await tempClient.getChats();
+                const targetChat = chats.find(c => c.isGroup && c.name && c.name.toLowerCase().includes(config.targetGroupName.toLowerCase()));
+                if (targetChat) {
+                    wizardTargetGroupJid = targetChat.id._serialized;
+                    console.log(`[WIZARD] Target grup berhasil ditemukan! JID: "${wizardTargetGroupJid}"`);
+                } else {
+                    console.log(`[WIZARD-PERINGATAN] Grup "${config.targetGroupName}" tidak ditemukan di chat list.`);
+                }
+            } catch (e) {
+                console.log(`[WIZARD-DIAGNOSTIK] Gagal memuat daftar chat: ${e.message || e}`);
+            }
+            console.log(`\n[WIZARD] Silakan minta Admin mengirim chat sembarang di grup target "${config.targetGroupName}".`);
+            console.log('[WIZARD] Menunggu pesan masuk... (Ketik "batal" di terminal untuk keluar dari wizard)');
+        });
+
+        tempClient.initialize().catch(err => {
+            console.error('[ERROR] Gagal menginisialisasi client wizard:', err);
+            resolve();
+        });
+
+        (async () => {
+            while (!wizardFinished) {
+                const action = await askQuestion('');
+                if (action.trim().toLowerCase() === 'batal') {
+                    wizardFinished = true;
+                    console.log('\n[WIZARD] Membatalkan wizard...');
+                    console.log('[SYSTEM] Menutup koneksi WhatsApp sementara...');
+                    try {
+                        await tempClient.destroy();
+                    } catch (e) {}
+                    resolve();
+                    break;
+                }
+            }
+        })();
+    });
+}
+
+/**
  * Menampilkan sub-menu pengaturan konfigurasi (.env)
  */
 async function showConfigMenu() {
@@ -465,19 +797,20 @@ async function showConfigMenu() {
         console.log('\n==================================================');
         console.log('              SUB-MENU PENGATURAN BOT');
         console.log('==================================================');
-        console.log(`1. Ubah Nama Pengguna    [${config.userName || '(Kosong)'}]`);
-        console.log(`2. Ubah OPT ID           [${config.userOptId || '(Kosong)'}]`);
-        console.log(`3. Ubah Nomor HP Anda    [${config.userHp || '(Kosong)'}]`);
-        console.log(`4. Ubah Nama Grup WA     [${config.targetGroupName || '(Kosong)'}]`);
+        console.log(`1. Ubah Nama Pengguna      [${config.userName || '(Kosong)'}]`);
+        console.log(`2. Ubah OPT ID             [${config.userOptId || '(Kosong)'}]`);
+        console.log(`3. Ubah Nomor HP Anda      [${config.userHp || '(Kosong)'}]`);
+        console.log(`4. Ubah Nama Grup WA       [${config.targetGroupName || '(Kosong)'}]`);
+        console.log(`5. Rekam ID Admin Otomatis`);
         const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
-        console.log(`5. Ubah Nomor HP Admin   [${adminsString || '(Kosong)'}]`);
-        console.log('6. Kembali ke Menu Utama');
+        console.log(`6. Ubah Nomor HP Admin     [${adminsString || '(Kosong)'}]`);
+        console.log('7. Kembali ke Menu Utama');
         console.log('==================================================');
 
-        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-6): ');
+        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-7): ');
         const trimmed = choice.trim();
 
-        if (trimmed === '6') {
+        if (trimmed === '7') {
             break;
         }
 
@@ -502,6 +835,9 @@ async function showConfigMenu() {
                 promptText = `Masukkan Nama Grup WA Target [Saat ini: ${config.targetGroupName}]: `;
                 break;
             case '5':
+                await recordAdminJidWizard();
+                continue;
+            case '6':
                 key = 'MONITORED_ADMINS';
                 promptText = `Masukkan Daftar HP Admin (pisahkan koma) [Saat ini: ${adminsString}]: `;
                 break;
@@ -552,7 +888,7 @@ async function startSystem() {
             await showConfigMenu();
         } else if (trimmed === '1') {
             // Cek kelengkapan konfigurasi minimal sebelum memulai bot
-            if (!config.userName || !config.userOptId || !config.targetGroupName || config.monitoredAdmins.length === 0) {
+            if (!config.userName || !config.userOptId || !config.targetGroupName) {
                 console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Anda terlebih dahulu di Menu 2.');
                 await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
                 continue;

@@ -106,5 +106,28 @@ describe('Verification Service Tests', () => {
             expect(result.status).toBe('REJECTED');
             expect(storeManager.updateStatus).toHaveBeenCalledWith('REJECTED', null, expect.any(String));
         });
+
+        test('harus menandai ACCEPTED jika pesan "done" pendek dengan reply (quotedText) yang berisi nama kita', () => {
+            storeManager.readStore.mockReturnValue({ status: 'WAITING_VERIFICATION' });
+
+            const quotedText = 'Daftar Pendaftar Shift:\n1. Ahmad\n2. Budi Santoso OPT-9982\n3. Candra';
+            const result = verification.processVerification('done', null, quotedText);
+
+            expect(result.processed).toBe(true);
+            expect(result.status).toBe('ACCEPTED');
+            expect(alarm.triggerAlarm).toHaveBeenCalled();
+            expect(storeManager.updateStatus).toHaveBeenCalledWith('ACCEPTED', null, expect.any(String));
+        });
+
+        test('harus menandai REJECTED jika pesan "done" pendek dengan reply (quotedText) yang TIDAK berisi nama kita', () => {
+            storeManager.readStore.mockReturnValue({ status: 'WAITING_VERIFICATION' });
+
+            const quotedText = 'Daftar Pendaftar Shift:\n1. Ahmad\n2. Candra - OPT-003';
+            const result = verification.processVerification('done', null, quotedText);
+
+            expect(result.processed).toBe(true);
+            expect(result.status).toBe('REJECTED');
+            expect(storeManager.updateStatus).toHaveBeenCalledWith('REJECTED', null, expect.any(String));
+        });
     });
 });
