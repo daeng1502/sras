@@ -37,6 +37,7 @@ const registrator = require('./services/registrator');
 const verification = require('./services/verification');
 const historyLogger = require('./services/history');
 const storeManager = require('./services/store');
+const backupManager = require('./services/backup');
 
 /**
  * Mendeteksi lokasi Chromium secara otomatis di lingkungan Android Termux
@@ -963,6 +964,40 @@ async function showConfigMenu() {
 }
 
 /**
+ * Menampilkan sub-menu cadangkan / pulihkan sesi login (Anti-Limit)
+ */
+async function showBackupMenu() {
+    while (true) {
+        console.clear();
+        console.log('\n==================================================');
+        console.log('      SUB-MENU CADANGAN / PULIHKAN SESI (ANTI-LIMIT)');
+        console.log('==================================================');
+        console.log('1. Cadangkan Sesi Login Saat Ini (Backup)');
+        console.log('2. Pulihkan Sesi Login dari Cadangan (Restore)');
+        console.log('3. Kembali ke Menu Utama');
+        console.log('==================================================');
+
+        const choice = await askQuestion('Pilih Opsi (1-3): ');
+        const trimmed = choice.trim();
+
+        if (trimmed === '3') {
+            break;
+        }
+
+        if (trimmed === '1') {
+            backupManager.backupSession();
+            await askQuestion('\nTekan ENTER untuk kembali...');
+        } else if (trimmed === '2') {
+            backupManager.restoreSession();
+            await askQuestion('\nTekan ENTER untuk kembali...');
+        } else {
+            console.log('[ERROR] Pilihan tidak valid.');
+            await askQuestion('\nTekan ENTER untuk kembali...');
+        }
+    }
+}
+
+/**
  * Alur utama inisialisasi sistem dengan menu dasbor utama
  */
 async function startSystem() {
@@ -973,25 +1008,28 @@ async function startSystem() {
         console.log('==================================================');
         console.log('1. Mulai Monitoring & Otomasi');
         console.log('2. Atur Profil & Konfigurasi (.env)');
-        console.log('3. Reset Status Harian (Uji Coba Ulang)');
-        console.log('4. Logout WhatsApp (Hapus Sesi)');
-        console.log('5. Keluar');
+        console.log('3. Cadangkan / Pulihkan Sesi Login (Anti-Limit)');
+        console.log('4. Reset Status Harian (Uji Coba Ulang)');
+        console.log('5. Logout WhatsApp (Hapus Sesi)');
+        console.log('6. Keluar');
         console.log('==================================================');
 
-        const choice = await askQuestion('Pilih Menu (1-5): ');
+        const choice = await askQuestion('Pilih Menu (1-6): ');
         const trimmed = choice.trim();
 
-        if (trimmed === '5') {
+        if (trimmed === '6') {
             console.log('[SYSTEM] Keluar dari program. Sampai jumpa!');
             process.exit(0);
-        } else if (trimmed === '4') {
+        } else if (trimmed === '5') {
             logoutWhatsApp();
             await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
-        } else if (trimmed === '3') {
+        } else if (trimmed === '4') {
             storeManager.writeStore(storeManager.defaultStore);
             console.log('\n[SUKSES] Status pendaftaran hari ini berhasil di-reset menjadi NULL.');
             console.log('[INFO] Anda sekarang dapat melakukan simulasi pendaftaran ulang hari ini.');
             await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
+        } else if (trimmed === '3') {
+            await showBackupMenu();
         } else if (trimmed === '2') {
             await showConfigMenu();
         } else if (trimmed === '1') {

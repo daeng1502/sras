@@ -4,6 +4,7 @@ node_modules/
 # Token & Sesi Login Lokal WhatsApp Web (Sangat penting agar tidak bocor)
 .wwebjs_auth/
 .wwebjs_cache/
+sras_session_backup/
 
 # Konfigurasi Sensitif Lingkungan Lokal (Berisi Nomor HP, Nama, & OPT ID)
 # .env dan .env.local dilacak secara default (isi sensitif dikosongkan sebelum dipush)
