@@ -7,8 +7,8 @@ node_modules/
 sras_session_backup/
 
 # Konfigurasi Sensitif Lingkungan Lokal (Berisi Nomor HP, Nama, & OPT ID)
-# .env dan .env.local dilacak secara default (isi sensitif dikosongkan sebelum dipush)
-
+.env
+.env.local
 # Log Aktivitas & Database Lokal (Agar status login tidak bertabrakan)
 src/database/history.log
 src/database/store.json
