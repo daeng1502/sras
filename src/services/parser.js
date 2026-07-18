@@ -246,14 +246,21 @@ function extractShiftTitle(text) {
     if (!text) return 'Shift Tidak Dikenal';
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     
-    // Cari baris pertama yang tidak dimulai dengan angka pendaftaran (misal "1.")
+    const skipKeywords = ['dear team', 'dear all', 'dear team,', 'dear all,', 'hallo team', 'hallo all', 'dear', 'team'];
+    // Cari baris pertama yang tidak dimulai dengan angka pendaftaran (misal "1.") dan bukan baris salam
     for (let line of lines) {
         if (!/^\s*\d+\.\s*/.test(line)) {
+            const cleanLine = line.toLowerCase().replace(/[,.:]/g, '').trim();
+            if (skipKeywords.includes(cleanLine) || cleanLine === 'dear team' || cleanLine === 'dear all') {
+                continue; // Skip baris salam pembuka
+            }
             return line;
         }
     }
     return lines[0] || 'Shift Baru';
 }
+
+
 
 /**
  * Menambahkan pengguna ke dalam list template dengan mempertahankan format persis menggunakan segmentasi blok.
