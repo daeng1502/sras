@@ -166,7 +166,8 @@ function logToDashboard(message) {
 }
 
 function redrawDashboard() {
-    console.clear();
+    // Bersihkan layar secara fisik dan kembalikan kursor ke pojok kiri atas (0,0)
+    process.stdout.write('\x1B[2J\x1B[H');
     const store = storeManager.readStore();
     const currentStatus = store.status || 'ELIGIBLE';
     const currentShift = store.shiftTitle || 'Belum Ada';
