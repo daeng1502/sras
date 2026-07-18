@@ -109,19 +109,19 @@ Meskipun disarankan menggunakan **Menu CLI Pilihan 2** untuk pengisian otomatis 
 
 ```env
 # Profil Pengguna
-USER_NAME="Daeng"              # Nama lengkap Anda yang akan ditulis di list pendaftaran
-USER_OPT_ID="2015150"          # OPT ID Anda (misal ID Karyawan/Operator)
-USER_HP="6282218454332"        # Nomor HP WhatsApp Anda (untuk Pairing Code)
+USER_NAME="Budi Santoso"       # Nama lengkap Anda yang akan ditulis di list pendaftaran
+USER_OPT_ID="OPT-9982"         # OPT ID Anda (misal ID Karyawan/Operator)
+USER_HP="628123456789"         # Nomor HP WhatsApp Anda (untuk Pairing Code, diawali kode negara tanpa +)
 
 # Target Pemantauan WhatsApp
-TARGET_GROUP_NAME="120363412551488757@g.us"  # Nama Grup WA atau JID grup secara langsung (Lebih direkomendasikan JID)
+TARGET_GROUP_NAME="120363000000000000@g.us"  # Nama Grup WA atau JID grup secara langsung (Lebih direkomendasikan JID)
 
 # Daftar Nomor HP Admin Vendor yang Sah (Dipantau pesan-pesannya)
-MONITORED_ADMINS="48533214335195,628123456789"
+MONITORED_ADMINS="628987654321,628111222333"
 ```
 
 > [!TIP]
-> Menggunakan **JID Grup secara langsung** (seperti `120363412551488757@g.us`) pada kolom `TARGET_GROUP_NAME` sangat direkomendasikan karena bot akan langsung mengunci grup tersebut saat baru dinyalakan tanpa menunggu sinkronisasi nama grup dari WhatsApp Web.
+> Menggunakan **JID Grup secara langsung** (seperti `120363000000000000@g.us`) pada kolom `TARGET_GROUP_NAME` sangat direkomendasikan karena bot akan langsung mengunci grup tersebut saat baru dinyalakan tanpa menunggu sinkronisasi nama grup dari WhatsApp Web.
 
 ---
 
