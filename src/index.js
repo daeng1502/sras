@@ -38,6 +38,7 @@ const verification = require('./services/verification');
 const historyLogger = require('./services/history');
 const storeManager = require('./services/store');
 const backupManager = require('./services/backup');
+const alarm = require('./services/alarm');
 
 /**
  * Mendeteksi lokasi Chromium secara otomatis di lingkungan Android Termux
@@ -463,6 +464,9 @@ async function handleWhatsAppCommand(msg) {
                         `• \`#ping\` - Cek latensi respon bot\n` +
                         `• \`#log\` - Kirim 10 baris riwayat log terakhir\n` +
                         `• \`#uptime\` - Cek pemakaian RAM & durasi aktif bot\n` +
+                        `• \`#backup\` - Cadangkan sesi login WA saat ini\n` +
+                        `• \`#config <nama1/optid1/nama2/optid2> <nilai>\` - Ubah setelan profil\n` +
+                        `• \`#test\` - Uji coba suara alarm lokal\n` +
                         `• \`#restart\` - Restart bot secara jarak jauh\n` +
                         `• \`#help\` - Tampilkan bantuan ini`;
             break;
@@ -654,6 +658,65 @@ async function handleWhatsAppCommand(msg) {
             }
             break;
         }
+
+        case '#backup':
+            try {
+                logToDashboard('Membuat cadangan sesi login...');
+                const success = backupManager.backupSession();
+                if (success) {
+                    replyText = `✅ *Pencadangan Sesi Berhasil.* File sesi disimpan ke folder cadangan.`;
+                } else {
+                    replyText = `⚠️ *Gagal*: Proses pencadangan sesi menemui error.`;
+                }
+            } catch (err) {
+                replyText = `⚠️ *Gagal*: ${err.message}`;
+            }
+            break;
+
+        case '#config': {
+            const configParts = args.split(/\s+/);
+            const targetKey = configParts[0] ? configParts[0].toLowerCase().trim() : '';
+            const targetVal = configParts.slice(1).join(' ').trim();
+
+            if (!targetKey || !targetVal) {
+                replyText = `⚠️ *Format Salah.* Gunakan: \`#config <nama1/optid1/nama2/optid2> <nilai baru>\``;
+            } else {
+                let envKey = '';
+                switch (targetKey) {
+                    case 'nama1':
+                        envKey = 'USER1_NAME';
+                        break;
+                    case 'optid1':
+                        envKey = 'USER1_OPT_ID';
+                        break;
+                    case 'nama2':
+                        envKey = 'USER2_NAME';
+                        break;
+                    case 'optid2':
+                        envKey = 'USER2_OPT_ID';
+                        break;
+                    default:
+                        replyText = `⚠️ *Pilihan tidak dikenal.* Gunakan salah satu dari: \`nama1\`, \`optid1\`, \`nama2\`, \`optid2\``;
+                }
+
+                if (envKey) {
+                    saveToEnv(envKey, targetVal);
+                    replyText = `✅ *Profil ${targetKey} berhasil diperbarui menjadi*: "${targetVal}"`;
+                    triggerRedraw();
+                }
+            }
+            break;
+        }
+
+        case '#test':
+            try {
+                logToDashboard('Memicu pengujian alarm lokal...');
+                alarm.triggerAlarm('ACCEPTED', 'Pengujian Alarm Jarak Jauh');
+                replyText = `✅ *Pengujian alarm lokal dipicu.* HP/PC lokal seharusnya berbunyi atau bergetar sekarang.`;
+            } catch (err) {
+                replyText = `⚠️ *Gagal memicu alarm*: ${err.message}`;
+            }
+            break;
 
         default:
             return;
