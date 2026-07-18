@@ -62,10 +62,13 @@ function triggerLocalAndroidAlarm(type) {
             // 2. Getarkan HP selama 1.5 detik
             exec('termux-vibrate -d 1500');
             
-            // Strobo senter visual jika pengguna diterima (ACCEPTED)
+            // Strobo senter visual untuk notifikasi kejadian
             if (type === 'ACCEPTED') {
-                console.log('[LOCAL ALARM] Memicu strobo senter HP (termux-torch)...');
-                strobeFlashlight(8, 250);
+                console.log('[LOCAL ALARM] Memicu strobo senter HP CEPAT (termux-torch)...');
+                strobeFlashlight(8, 200); // 8 kali berkedip cepat (sukses diterima)
+            } else if (type === 'REGISTER') {
+                console.log('[LOCAL ALARM] Memicu strobo senter HP LAMBAT (termux-torch)...');
+                strobeFlashlight(4, 500); // 4 kali berkedip lambat (pendaftaran terkirim)
             }
             
             // 3. HP berbicara langsung lewat Text-to-Speech (Dinamis sesuai tipe kejadian)
