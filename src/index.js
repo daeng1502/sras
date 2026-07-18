@@ -27,6 +27,7 @@ puppeteer.launch = async function(options) {
 console.log('[SYSTEM-PUPPETEER] Pemblokiran media (gambar/video/font) aktif untuk menghemat kuota internet.');
 
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { exec } = require('child_process');
 const qrcode = require('qrcode-terminal');
 const readline = require('readline');
 const fs = require('fs');
@@ -185,6 +186,19 @@ function setupClientListeners(clientInstance, userLabel, userHp) {
     clientInstance.on('auth_failure', (msg) => {
         console.error(`[AUTH - ${userLabel}] Otentikasi gagal:`, msg);
         historyLogger.logEvent('ERROR', `Autentikasi gagal [${userLabel}]: ${msg}`);
+    });
+
+    clientInstance.on('disconnected', (reason) => {
+        console.error(`[DISCONNECTED - ${userLabel}] Koneksi terputus:`, reason);
+        historyLogger.logEvent('WARNING', `Koneksi terputus [${userLabel}]: ${reason}`);
+        logToDashboard(`[WARNING] Koneksi ${userLabel} terputus: ${reason}. Mencoba menghubungkan kembali...`);
+        
+        setTimeout(() => {
+            logToDashboard(`[RECONNECT - ${userLabel}] Menginisialisasi kembali koneksi...`);
+            clientInstance.initialize().catch(err => {
+                logToDashboard(`[RECONNECT-ERROR - ${userLabel}] Gagal: ${err.message}`);
+            });
+        }, 10000);
     });
 }
 
@@ -474,6 +488,7 @@ async function handleWhatsAppCommand(msg) {
                         `• \`#uptime\` - Cek pemakaian RAM & durasi aktif bot\n` +
                         `• \`#backup\` - Cadangkan sesi login WA saat ini\n` +
                         `• \`#config <nama1/optid1/nama2/optid2> <nilai>\` - Ubah setelan profil\n` +
+                        `• \`#wakelock <on/off>\` - Aktif/nonaktifkan Termux Wake Lock\n` +
                         `• \`#test\` - Uji coba suara alarm lokal\n` +
                         `• \`#restart\` - Restart bot secara jarak jauh\n` +
                         `• \`#help\` - Tampilkan bantuan ini`;
@@ -725,6 +740,31 @@ async function handleWhatsAppCommand(msg) {
                 replyText = `⚠️ *Gagal memicu alarm*: ${err.message}`;
             }
             break;
+        case '#wakelock': {
+            const state = args.toLowerCase().trim();
+            if (state === 'on' || state === '1' || state === 'true' || !state) {
+                exec('termux-wake-lock', (err) => {
+                    if (err) {
+                        msg.reply(`⚠️ *Gagal mengaktifkan Wake Lock*: ${err.message}. Pastikan bot berjalan di Termux Android.`);
+                    } else {
+                        msg.reply(`✅ *Termux Wake Lock AKTIF.* CPU HP tidak akan ditangguhkan oleh Android.`);
+                    }
+                });
+                return;
+            } else if (state === 'off' || state === '0' || state === 'false') {
+                exec('termux-wake-unlock', (err) => {
+                    if (err) {
+                        msg.reply(`⚠️ *Gagal menonaktifkan Wake Lock*: ${err.message}`);
+                    } else {
+                        msg.reply(`✅ *Termux Wake Lock NONAKTIF.*`);
+                    }
+                });
+                return;
+            } else {
+                replyText = `⚠️ *Format Salah.* Gunakan: \`#wakelock on\` atau \`#wakelock off\``;
+            }
+            break;
+        }
 
         default:
             return;
