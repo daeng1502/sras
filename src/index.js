@@ -168,14 +168,24 @@ function setupClientListeners(clientInstance, userLabel, userHp) {
                 console.log(`2. Ketuk "Tautkan dengan nomor telepon" (Link with phone number).`);
                 console.log(`3. Masukkan kode di atas.`);
                 console.log(`========================================\n`);
+
+                // Kirim notifikasi sistem Android via Termux API
+                const cleanCode = `${code.slice(0, 4)}-${code.slice(4)}`;
+                exec(`termux-notification --title "SRAS Pairing Code (${userLabel})" --content "${cleanCode}" --id 999123 --priority high`, () => {});
             } catch (err) {
                 console.error(`[ERROR - ${userLabel}] Gagal meminta kode penautan:`, err.message || err);
                 console.log(`\n[FALLBACK - ${userLabel}] Beralih ke QR Code sebagai cadangan...`);
                 qrcode.generate(qr, { small: true });
+
+                // Kirim notifikasi sistem Android via Termux API
+                exec(`termux-notification --title "SRAS QR Code (${userLabel})" --content "Pencadangan QR Code aktif. Buka terminal untuk memindai." --id 999124 --priority high`, () => {});
             }
         } else {
             console.log(`\n[QR - ${userLabel}] QR Code terdeteksi! Silakan pindai menggunakan WhatsApp HP Anda:`);
             qrcode.generate(qr, { small: true });
+
+            // Kirim notifikasi sistem Android via Termux API
+            exec(`termux-notification --title "SRAS QR Code (${userLabel})" --content "WhatsApp meminta pemindaian QR Code. Silakan buka terminal." --id 999124 --priority high`, () => {});
         }
     });
 
