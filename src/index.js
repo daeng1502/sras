@@ -190,6 +190,7 @@ setupClientListeners(client2, 'AKUN 2', config.user2.hp);
 let targetGroupJid = null;
 const groupMessageCache = {};
 let isAutoSendEnabled = true;
+let isMultiAccountMode = false;
 
 // State & Fungsionalitas Dasbor Kartu Vertikal
 const recentLogs = [];
@@ -217,7 +218,7 @@ function redrawDashboard() {
     let output = '';
     output += '\x1B[H'; // Pindahkan kursor ke pojok kiri atas (0,0) tanpa menghapus layar
     
-    if (!config.user2.name) {
+    if (!isMultiAccountMode) {
         // ================= SINGLE ACCOUNT LAYOUT =================
         const s1 = store.user1 || { status: 'NULL', registeredShiftId: null };
         output += '============================================================\x1B[K\n';
@@ -321,10 +322,14 @@ async function startSystemMonitoring() {
     await checkTargetJid();
 
     console.log('\n==================================================');
-    console.log('          MEMULAI MONITORING SHIFT DUAL-AKUN');
+    if (isMultiAccountMode) {
+        console.log('          MEMULAI MONITORING SHIFT DUAL-AKUN');
+    } else {
+        console.log('          MEMULAI MONITORING SHIFT');
+    }
     console.log('==================================================');
     console.log(`Akun 1 (Master) : ${config.user1.name} (${config.user1.optId})`);
-    if (config.user2.name) {
+    if (isMultiAccountMode) {
         console.log(`Akun 2 (Member) : ${config.user2.name} (${config.user2.optId})`);
     }
     console.log(`Grup Target     : ${config.targetGroupName}`);
@@ -372,7 +377,7 @@ client1.on('ready', async () => {
     console.log('\n[READY] WhatsApp Client 1 (Master) siap dan aktif!');
     historyLogger.logEvent('SYSTEM', 'Akun 1 terhubung dan siap.');
 
-    if (config.user2.name && !isClient2Ready) {
+    if (isMultiAccountMode && !isClient2Ready) {
         console.log('[SYSTEM] Menginisialisasi koneksi WhatsApp Client 2 (Member)...');
         client2.initialize().catch(err => {
             console.error('[ERROR] Gagal menginisialisasi client 2:', err);
@@ -391,7 +396,7 @@ client2.on('ready', async () => {
 });
 
 async function triggerAccount2Registration(baseText, groupJid) {
-    if (!config.user2.name) return;
+    if (!isMultiAccountMode) return;
     
     // Cek kelayakan Akun 2
     const regResult2 = registrator.processRegistration(baseText, 'user2');
@@ -1221,9 +1226,38 @@ async function startSystem() {
         } else if (trimmed === '2') {
             await showConfigMenu();
         } else if (trimmed === '1') {
-            // Cek kelengkapan konfigurasi minimal sebelum memulai bot
-            if (!config.user1.name || !config.user1.optId || !config.targetGroupName) {
-                console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Akun 1 Anda terlebih dahulu di Menu 2.');
+            console.clear();
+            console.log('\n==================================================');
+            console.log('             PILIH MODE MONITORING BOT');
+            console.log('==================================================');
+            console.log('1. Single-Account (Hanya Akun 1/Master)');
+            console.log('2. Dual-Account (Akun 1 & Akun 2 Terkoordinasi)');
+            console.log('3. Kembali ke Menu Utama');
+            console.log('==================================================');
+            
+            const modeChoice = await askQuestion('Pilih Opsi (1-3): ');
+            const cleanModeChoice = modeChoice.trim();
+            
+            if (cleanModeChoice === '3') {
+                continue;
+            }
+            
+            if (cleanModeChoice === '1') {
+                if (!config.user1.name || !config.user1.optId || !config.targetGroupName) {
+                    console.log('\n[PERINGATAN] Konfigurasi Akun 1 belum lengkap! Silakan atur profil Anda terlebih dahulu.');
+                    await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
+                    continue;
+                }
+                isMultiAccountMode = false;
+            } else if (cleanModeChoice === '2') {
+                if (!config.user1.name || !config.user1.optId || !config.user2.name || !config.user2.optId || !config.targetGroupName) {
+                    console.log('\n[PERINGATAN] Konfigurasi Akun 1 atau Akun 2 belum lengkap! Silakan lengkapi profil di Menu 2.');
+                    await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
+                    continue;
+                }
+                isMultiAccountMode = true;
+            } else {
+                console.log('[ERROR] Opsi tidak valid.');
                 await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
                 continue;
             }
