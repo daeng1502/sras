@@ -413,11 +413,16 @@ client.on('message_create', async (msg) => {
             return;
         }
 
+        // Tampilkan aktivitas chat masuk di grup pada dasbor (dibatasi panjang karakternya)
+        const cleanSenderNumber = msg.author ? msg.author.split('@')[0] : msg.from.split('@')[0];
+        const cleanBody = msg.body ? msg.body.replace(/\n/g, ' ').slice(0, 30) : '';
+        const roleLabel = isFromMonitoredAdmin ? 'Admin' : 'Member';
+        logToDashboard(`[${roleLabel}] ${cleanSenderNumber}: "${cleanBody}..."`);
+
         // Pastikan pengirim adalah Admin
         if (!isFromMonitoredAdmin) return;
 
         const messageText = msg.body;
-        logToDashboard(`Menerima pesan baru dari admin: ${senderId.split('@')[0]}`);
 
         // 4. Deteksi Pembukaan Shift Kerja Baru
         if (parser.isShiftOpening(messageText)) {
