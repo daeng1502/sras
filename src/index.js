@@ -156,6 +156,57 @@ let targetGroupJid = null;
 const groupMessageCache = {};
 let isAutoSendEnabled = true;
 
+// State & Fungsionalitas Dasbor Kartu Vertikal
+const recentLogs = [];
+function logToDashboard(message) {
+    const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
+    recentLogs.push(`[${timeStr}] ${message}`);
+    if (recentLogs.length > 5) recentLogs.shift();
+    redrawDashboard();
+}
+
+function redrawDashboard() {
+    console.clear();
+    const store = storeManager.readStore();
+    const currentStatus = store.status || 'ELIGIBLE';
+    const currentShift = store.shiftTitle || 'Belum Ada';
+    const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
+    
+    console.log('============================================================');
+    console.log('                 SRAS PANEL - MONITORING SHIFT              ');
+    console.log('============================================================');
+    console.log(` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED`);
+    console.log('------------------------------------------------------------');
+    console.log('  PROFIL PENGGUNA:');
+    console.log(`  • Nama        : ${config.userName}`);
+    console.log(`  • ID OPT      : ${config.userOptId}`);
+    console.log(`  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}`);
+    console.log('  ');
+    console.log('  KONFIGURASI MONITOR:');
+    const kwString = config.targetShiftKeywords && config.targetShiftKeywords.length > 0
+        ? config.targetShiftKeywords.join(', ')
+        : 'Semua Shift (Tanpa Filter)';
+    console.log(`  • Kata Kunci  : ${kwString}`);
+    const sendMode = isAutoSendEnabled ? 'OTOMATIS (Mode Auto-Register)' : 'PANTAU SAJA (Alarm Tanpa Chat)';
+    console.log(`  • Kirim Chat  : ${sendMode}`);
+    console.log('  ');
+    console.log('  STATUS VERIFIKASI:');
+    console.log(`  • Status Saat Ini : [ ${currentStatus} ]`);
+    console.log(`  • Shift Terpilih  : ${currentShift}`);
+    console.log('------------------------------------------------------------');
+    console.log('  AKTIVITAS TERBARU (LOG LOKAL):');
+    if (recentLogs.length === 0) {
+        console.log('  (Belum ada aktivitas)');
+    } else {
+        recentLogs.forEach(log => {
+            console.log(`  ${log}`);
+        });
+    }
+    console.log('============================================================');
+    console.log('Tekan Ctrl+C untuk menghentikan pemantauan.');
+}
+
 // Event ketika client siap menerima pesan
 client.on('ready', async () => {
     console.log('\n[READY] WhatsApp Client siap dan aktif!');
@@ -212,8 +263,13 @@ client.on('ready', async () => {
         console.log('[INFO] MODE PANTAU SAJA aktif. Bot hanya akan membunyikan alarm tanpa mengirim chat otomatis.');
     }
 
-    console.log(`\n[SYSTEM] Menunggu pesan lowongan dari Admin di grup target "${config.targetGroupName}"...`);
     historyLogger.logEvent('SYSTEM', 'Bot mulai memantau grup.');
+    logToDashboard('Bot terhubung dan siap memantau grup.');
+    
+    // Jalankan pembaruan waktu dasbor otomatis setiap 10 detik
+    setInterval(() => {
+        redrawDashboard();
+    }, 10000);
 });
 
 // Mendengarkan pesan masuk & pesan keluar (message_create)
@@ -247,8 +303,6 @@ client.on('message_create', async (msg) => {
 
         // Jika pesan dikirim oleh bot sendiri, cukup masukkan ke cache lalu hentikan proses
         if (msg.fromMe) return;
-
-        console.log(`[DIAGNOSTIK] Menerima pesan di grup JID: "${msg.from}" | Pengirim: "${msg.author}" | Isi: "${msg.body.replace(/\n/g, ' ').slice(0, 60)}..."`);
 
         // 2. Deteksi apakah pengirim adalah salah satu admin yang dipantau (dinamis & fleksibel terhadap suffix @c.us / @lid / Phone vs LID mapping)
         const senderId = msg.author;
@@ -285,7 +339,7 @@ client.on('message_create', async (msg) => {
                     if (currentChat && currentChat.isGroup && currentChat.name && currentChat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
                         targetGroupJid = msg.from;
                         isMessageFromTargetGroup = true;
-                        console.log(`[SYSTEM] Target grup terdeteksi secara otomatis! JID: "${targetGroupJid}"`);
+                        logToDashboard(`Target grup terdeteksi secara otomatis! JID: "${targetGroupJid}"`);
                     }
                 } catch (err) {
                     // Abaikan secara aman
@@ -317,7 +371,7 @@ client.on('message_create', async (msg) => {
                         const participant = targetChat.participants.find(p => p.id._serialized === senderId);
                         if (participant && (participant.isAdmin || participant.isSuperAdmin)) {
                             isVerifiedAdmin = true;
-                            console.log(`[SYSTEM-VERIFIKASI] Pengirim "${senderId}" terverifikasi sebagai admin grup.`);
+                            logToDashboard(`Pengirim ${senderId.split('@')[0]} terverifikasi sebagai admin grup.`);
                         }
                     }
                 } catch (e) {
@@ -326,12 +380,12 @@ client.on('message_create', async (msg) => {
 
                 // Fallback jika tidak terverifikasi via cache (misal cache chat belum lengkap)
                 if (!isVerifiedAdmin) {
-                    console.log(`[SYSTEM-VERIFIKASI] Mengamankan perekaman admin baru "${senderId}" berdasarkan kecocokan format pesan.`);
+                    logToDashboard(`Perekaman admin baru: ${senderId.split('@')[0]}`);
                     isVerifiedAdmin = true;
                 }
 
                 if (isVerifiedAdmin) {
-                    console.log(`\n[SYSTEM] Terdeteksi aktivitas pembukaan/verifikasi shift dari admin baru "${senderId}"!`);
+                    logToDashboard(`Aktivitas shift dari admin baru terdeteksi: ${senderId.split('@')[0]}`);
                     
                     const currentAdmins = config.monitoredAdmins.map(a => a.split('@')[0]);
                     const cleanSenderNumber = senderId.split('@')[0];
@@ -339,29 +393,15 @@ client.on('message_create', async (msg) => {
                         currentAdmins.push(cleanSenderNumber);
                         const newAdminsString = currentAdmins.join(',');
                         saveToEnv('MONITORED_ADMINS', newAdminsString);
-                        console.log(`[SUKSES] ID Admin baru "${senderId}" berhasil direkam secara dinamis!`);
+                        logToDashboard(`Admin baru direkam ke .env: ${cleanSenderNumber}`);
                     }
                     isFromMonitoredAdmin = true;
                 }
             }
         }
 
-        // CETAK LOG PEMBANTU DIAGNOSTIK
-        if (isFromMonitoredAdmin) {
-            console.log(`[DIAGNOSTIK] Pengirim cocok sebagai Admin yang dipantau! (${senderId})`);
-        } else {
-            const isPotentialShift = parser.isShiftOpening(msg.body);
-            if (isPotentialShift) {
-                console.log(`[DIAGNOSTIK] Deteksi pesan pembukaan shift, tapi diabaikan karena pengirim (${senderId}) bukan salah satu Admin yang dipantau.`);
-                console.log(`[DIAGNOSTIK-DETIL] Info JID pesan: group JID="${msg.from}" (target JID saat ini: "${targetGroupJid || 'belum dikunci'}").`);
-            }
-        }
-
         // Pastikan pesan berasal dari grup target yang sudah terdeteksi
         if (!targetGroupJid || msg.from !== targetGroupJid) {
-            if (isFromMonitoredAdmin && parser.isShiftOpening(msg.body)) {
-                console.log(`[DIAGNOSTIK] Pesan shift diabaikan karena targetGroupJid belum terkunci atau berbeda (targetGroupJid saat ini: ${targetGroupJid || 'belum terkunci'}).`);
-            }
             return;
         }
 
@@ -369,19 +409,19 @@ client.on('message_create', async (msg) => {
         if (!isFromMonitoredAdmin) return;
 
         const messageText = msg.body;
-        console.log(`\n[MSG] Menerima pesan baru dari admin (${senderId}) di grup target`);
+        logToDashboard(`Menerima pesan baru dari admin: ${senderId.split('@')[0]}`);
 
         // 4. Deteksi Pembukaan Shift Kerja Baru
         if (parser.isShiftOpening(messageText)) {
-            console.log('[DETEKSI] Pesan pembukaan shift baru teridentifikasi!');
+            logToDashboard('Pesan pembukaan shift baru terdeteksi!');
             
             const regResult = registrator.processRegistration(messageText);
             
             if (regResult.success) {
-                console.log(`[SUKSES] ${regResult.message}`);
+                logToDashboard(`Pendaftaran diproses: ${regResult.message}`);
                 
                 if (!regResult.replyText) {
-                    console.log('[INFO] Nama Anda sudah terdaftar sebelumnya di list. Melewati pengiriman pendaftaran.');
+                    logToDashboard('Nama Anda sudah terdaftar di list (Diabaikan).');
                     return;
                 }
 
@@ -395,7 +435,7 @@ client.on('message_create', async (msg) => {
 
                 // Mengatur jeda yang sangat cepat namun tetap aman (1.0 s.d 1.8 detik)
                 const competitiveDelayMs = Math.floor(Math.random() * (1800 - 1000 + 1)) + 1000;
-                console.log(`[JEDA] Mengetik selama ${competitiveDelayMs / 1000} detik sebelum mengirim...`);
+                logToDashboard(`Mengetik selama ${competitiveDelayMs / 1000} detik sebelum mengirim...`);
                 await new Promise(resolve => setTimeout(resolve, competitiveDelayMs));
 
                 // SINKRONISASI DETIK TERAKHIR (Anti-Race Condition) menggunakan cache lokal
@@ -411,11 +451,11 @@ client.on('message_create', async (msg) => {
                     }
 
                     if (lastCachedMsg && parser.isShiftOpening(lastCachedMsg.body)) {
-                        console.log('[SINKRONISASI] Mendeteksi pendaftar lain mengirimkan list selama jeda (via cache local). Melakukan sinkronisasi ulang...');
+                        logToDashboard('Sinkronisasi ulang pendaftar lain terdeteksi...');
                         
-                        // Batalkan jika ternyata nama kita sudah dimasukkan oleh orang lain
+                        // Batal jika ternyata nama kita sudah dimasukkan oleh orang lain
                         if (parser.isUserAlreadyRegistered(lastCachedMsg.body, config.userName, config.userOptId)) {
-                            console.log('[ABAI] Nama pengguna sudah didaftarkan oleh pendaftar lain.');
+                            logToDashboard('Batal kirim: Sudah didaftarkan oleh pendaftar lain.');
                             return;
                         }
 
@@ -431,12 +471,12 @@ client.on('message_create', async (msg) => {
                 if (isAutoSendEnabled) {
                     // Balas pesan ke grup secara otomatis dengan template terisi (BR-004 & BR-006)
                     await client.sendMessage(msg.from, textToSend);
-                    console.log('[KIRIM] Berhasil mengirimkan daftar pendaftaran terbaru ke grup.');
+                    logToDashboard('Pesan pendaftaran berhasil terkirim ke grup!');
                 } else {
-                    console.log('[INFO] MODE PANTAU SAJA aktif. Chat otomatis tidak dikirim ke grup.');
+                    logToDashboard('Pendaftaran dibunyikan (Mode Pantau Saja).');
                 }
             } else {
-                console.log(`[ABAI] ${regResult.message}`);
+                logToDashboard(`Dilewati: ${regResult.message}`);
                 historyLogger.logEvent('SKIP', `Pendaftaran dilewati karena: ${regResult.message}`);
             }
             return;
@@ -452,7 +492,7 @@ client.on('message_create', async (msg) => {
                 const isList = /^\s*\d+\.\s*/m.test(quotedMsg.body) || quotedMsg.body.toLowerCase().includes('team') || parser.isShiftOpening(quotedMsg.body);
                 if (isList) {
                     quotedText = quotedMsg.body;
-                    console.log(`[VERIFIKASI] Mendeteksi Admin mereply list pendaftaran.`);
+                    logToDashboard('Admin me-reply list pendaftaran...');
                 }
             } catch (err) {
                 // Abaikan error quoted message fetch
@@ -465,15 +505,15 @@ client.on('message_create', async (msg) => {
         }
 
         if (shouldVerify) {
-            console.log('[DETEKSI] Pesan hasil verifikasi/seleksi teridentifikasi!');
+            logToDashboard('Hasil verifikasi/seleksi terdeteksi!');
             
             // Proses verifikasi secara sinkron menggunakan cache lokal & quotedText
             const verResult = verification.processVerification(messageText, cache, quotedText);
             
             if (verResult.processed) {
-                console.log(`[VERIFIKASI] Status terupdate menjadi: ${verResult.status}. Alasan: ${verResult.reason}`);
+                logToDashboard(`Status terupdate menjadi: [${verResult.status}]. Alasan: ${verResult.reason}`);
             } else {
-                console.log(`[ABAI] ${verResult.reason}`);
+                logToDashboard(`Verifikasi dilewati: ${verResult.reason}`);
             }
             return;
         }
