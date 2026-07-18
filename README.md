@@ -83,14 +83,11 @@ flowchart TD
     ```bash
     npm install
     ```
-3.  Salin template konfigurasi dan sesuaikan nilai di dalamnya:
-    ```bash
-    cp .env.example .env
-    ```
-4.  Jalankan aplikasi:
+3.  Jalankan aplikasi:
     ```bash
     npm start
     ```
+    *(Pada jalankan pertama, Anda dapat langsung mengatur nama, OPT ID, dan nomor HP secara interaktif melalui **Menu Utama CLI Pilihan 2**).*
 
 ### C. Langkah Instalasi di Android Termux (Portabel di HP)
 Aplikasi ini dioptimalkan penuh agar dapat berjalan di Android Termux secara portabel menggunakan headless Chromium.
@@ -105,7 +102,7 @@ Aplikasi ini dioptimalkan penuh agar dapat berjalan di Android Termux secara por
 
 ## ⚙️ Panduan Konfigurasi (.env)
 
-Buka berkas `.env` di folder root dan isi parameter berikut sesuai profil Anda:
+Meskipun disarankan menggunakan **Menu CLI Pilihan 2** untuk pengisian otomatis yang lebih mudah, Anda juga tetap dapat membuat/mengedit berkas `.env` secara manual di folder root dengan isi parameter berikut:
 
 ```env
 # Profil Pengguna
