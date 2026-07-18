@@ -3,6 +3,28 @@ const path = require('path');
 const fs = require('fs');
 
 /**
+ * Memicu lampu senter berkedip (strobo) untuk alarm visual di Termux
+ */
+function strobeFlashlight(times = 8, intervalMs = 250) {
+    let count = 0;
+    function run() {
+        if (count >= times) {
+            exec('termux-torch off');
+            return;
+        }
+        exec('termux-torch on', () => {
+            setTimeout(() => {
+                exec('termux-torch off', () => {
+                    count++;
+                    setTimeout(run, intervalMs);
+                });
+            }, intervalMs);
+        });
+    }
+    run();
+}
+
+/**
  * Memicu getaran, suara Text-to-Speech, dan ringtone kencang secara lokal di HP Android Termux
  */
 function triggerLocalAndroidAlarm(type) {
@@ -39,6 +61,12 @@ function triggerLocalAndroidAlarm(type) {
         exec(`termux-volume music ${targetVolume}`, () => {
             // 2. Getarkan HP selama 1.5 detik
             exec('termux-vibrate -d 1500');
+            
+            // Strobo senter visual jika pengguna diterima (ACCEPTED)
+            if (type === 'ACCEPTED') {
+                console.log('[LOCAL ALARM] Memicu strobo senter HP (termux-torch)...');
+                strobeFlashlight(8, 250);
+            }
             
             // 3. HP berbicara langsung lewat Text-to-Speech (Dinamis sesuai tipe kejadian)
             let ttsText = 'Ada shift baru! Segera cek WhatsApp Anda.';
