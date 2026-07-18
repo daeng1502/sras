@@ -1524,12 +1524,8 @@ async function startSystem() {
                 rl.close();
                 process.stdout.write('\r\n[AUTOBOT] Memulai inisialisasi otomatis...\n');
                 
-                // Tentukan mode berdasarkan ketersediaan config Akun 2
-                if (config.user2.name && config.user2.optId) {
-                    isMultiAccountMode = true;
-                } else {
-                    isMultiAccountMode = false;
-                }
+                // Nilai default autobot diset ke Single-Account sesuai permintaan
+                isMultiAccountMode = false;
                 
                 console.log(`[AUTOBOT] Mode: ${isMultiAccountMode ? 'Dual-Account' : 'Single-Account'}`);
                 client1.initialize().catch(err => {
