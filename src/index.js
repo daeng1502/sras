@@ -194,7 +194,7 @@ setupClientListeners(client2, 'AKUN 2', config.user2.hp);
 // Variabel state lokal (menghindari pemanggilan getChat / getChats CDP Puppeteer yang rawan bug 'r')
 let targetGroupJid = null;
 const groupMessageCache = {};
-let isAutoSendEnabled = true;
+let isAutoSendEnabled = false;
 let isMultiAccountMode = false;
 
 // State & Fungsionalitas Dasbor Kartu Vertikal
