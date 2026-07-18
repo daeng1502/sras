@@ -214,43 +214,62 @@ function redrawDashboard() {
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
     
-    // Rangkai seluruh baris dasbor menjadi satu string tunggal (Atomic Buffer) dengan kode pembersih sisa baris (\x1B[K)
     let output = '';
     output += '\x1B[H'; // Pindahkan kursor ke pojok kiri atas (0,0) tanpa menghapus layar
-    output += '============================================================\x1B[K\n';
-    output += '             SRAS PANEL - DUAL-ACCOUNT MONITORING           \x1B[K\n';
-    output += '============================================================\x1B[K\n';
-    output += ` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED\x1B[K\n`;
-    output += '------------------------------------------------------------\x1B[K\n';
     
-    // Profil Akun 1
-    const s1 = store.user1 || { status: 'NULL', registeredShiftId: null };
-    output += '  PROFIL AKUN 1 (MASTER):\x1B[K\n';
-    output += `  • Nama        : ${config.user1.name}\x1B[K\n`;
-    output += `  • ID OPT      : ${config.user1.optId}\x1B[K\n`;
-    output += `  • Status      : [ ${s1.status} ]\x1B[K\n`;
-    output += `  • Shift       : ${s1.registeredShiftId || 'Belum Ada'}\x1B[K\n`;
-    output += '  \x1B[K\n';
-
-    // Profil Akun 2
-    if (config.user2.name) {
+    if (!config.user2.name) {
+        // ================= SINGLE ACCOUNT LAYOUT =================
+        const s1 = store.user1 || { status: 'NULL', registeredShiftId: null };
+        output += '============================================================\x1B[K\n';
+        output += '                 SRAS PANEL - MONITORING SHIFT              \x1B[K\n';
+        output += '============================================================\x1B[K\n';
+        output += ` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED\x1B[K\n`;
+        output += '------------------------------------------------------------\x1B[K\n';
+        output += '  PROFIL PENGGUNA:\x1B[K\n';
+        output += `  • Nama        : ${config.user1.name}\x1B[K\n`;
+        output += `  • ID OPT      : ${config.user1.optId}\x1B[K\n`;
+        output += `  • Status      : [ ${s1.status} ]\x1B[K\n`;
+        output += `  • Shift       : ${s1.registeredShiftId || 'Belum Ada'}\x1B[K\n`;
+        output += '  \x1B[K\n';
+        output += '  KONFIGURASI MONITOR:\x1B[K\n';
+        const kwString = config.targetShiftKeywords && config.targetShiftKeywords.length > 0
+            ? config.targetShiftKeywords.join(', ')
+            : 'Semua Shift (Tanpa Filter)';
+        output += `  • Kata Kunci  : ${kwString}\x1B[K\n`;
+        const sendMode = isAutoSendEnabled ? 'OTOMATIS (Mode Auto-Register)' : 'PANTAU SAJA (Alarm Tanpa Chat)';
+        output += `  • Kirim Chat  : ${sendMode}\x1B[K\n`;
+        output += `  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}\x1B[K\n`;
+    } else {
+        // ================= DUAL ACCOUNT LAYOUT =================
+        const s1 = store.user1 || { status: 'NULL', registeredShiftId: null };
         const s2 = store.user2 || { status: 'NULL', registeredShiftId: null };
+        output += '============================================================\x1B[K\n';
+        output += '             SRAS PANEL - DUAL-ACCOUNT MONITORING           \x1B[K\n';
+        output += '============================================================\x1B[K\n';
+        output += ` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED\x1B[K\n`;
+        output += '------------------------------------------------------------\x1B[K\n';
+        output += '  PROFIL AKUN 1 (MASTER):\x1B[K\n';
+        output += `  • Nama        : ${config.user1.name}\x1B[K\n`;
+        output += `  • ID OPT      : ${config.user1.optId}\x1B[K\n`;
+        output += `  • Status      : [ ${s1.status} ]\x1B[K\n`;
+        output += `  • Shift       : ${s1.registeredShiftId || 'Belum Ada'}\x1B[K\n`;
+        output += '  \x1B[K\n';
         output += '  PROFIL AKUN 2 (MEMBER):\x1B[K\n';
         output += `  • Nama        : ${config.user2.name}\x1B[K\n`;
         output += `  • ID OPT      : ${config.user2.optId}\x1B[K\n`;
         output += `  • Status      : [ ${s2.status} ]\x1B[K\n`;
         output += `  • Shift       : ${s2.registeredShiftId || 'Belum Ada'}\x1B[K\n`;
         output += '  \x1B[K\n';
+        output += '  KONFIGURASI MONITOR:\x1B[K\n';
+        const kwString = config.targetShiftKeywords && config.targetShiftKeywords.length > 0
+            ? config.targetShiftKeywords.join(', ')
+            : 'Semua Shift (Tanpa Filter)';
+        output += `  • Kata Kunci  : ${kwString}\x1B[K\n`;
+        const sendMode = isAutoSendEnabled ? 'OTOMATIS (Sequential Register)' : 'PANTAU SAJA (Alarm Tanpa Chat)';
+        output += `  • Kirim Chat  : ${sendMode}\x1B[K\n`;
+        output += `  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}\x1B[K\n`;
     }
-
-    output += '  KONFIGURASI MONITOR:\x1B[K\n';
-    const kwString = config.targetShiftKeywords && config.targetShiftKeywords.length > 0
-        ? config.targetShiftKeywords.join(', ')
-        : 'Semua Shift (Tanpa Filter)';
-    output += `  • Kata Kunci  : ${kwString}\x1B[K\n`;
-    const sendMode = isAutoSendEnabled ? 'OTOMATIS (Sequential Register)' : 'PANTAU SAJA (Alarm Tanpa Chat)';
-    output += `  • Kirim Chat  : ${sendMode}\x1B[K\n`;
-    output += `  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}\x1B[K\n`;
+    
     output += '------------------------------------------------------------\x1B[K\n';
     output += '  AKTIVITAS TERBARU (LOG LOKAL):\x1B[K\n';
     if (recentLogs.length === 0) {
