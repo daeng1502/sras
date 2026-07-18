@@ -202,17 +202,18 @@ function isShiftOpening(text) {
     }
 
     // Jika tidak ada list bernomor sama sekali di semua blok yang cocok,
-    // kita tolak HANYA jika tidak ada informasi batas kuota yang valid (contoh: "11.00 : 2 orang")
+    // kita tolak HANYA jika tidak ada informasi batas kuota yang valid atau format header waktu yang valid (contoh: "00.00 :  orang")
     if (matchingBlocksWithEntriesCount === 0) {
-        let hasValidQuota = false;
+        let hasValidQuotaOrTimeHeader = false;
         for (let block of blocks) {
             const quota = getQuotaFromLine(block.headerText);
-            if (quota !== null && quota > 0) {
-                hasValidQuota = true;
+            const hasTimeHeader = /(?:\d{2}[.:]\d{2})/.test(block.headerText);
+            if ((quota !== null && quota > 0) || hasTimeHeader) {
+                hasValidQuotaOrTimeHeader = true;
                 break;
             }
         }
-        if (!hasValidQuota) return false;
+        if (!hasValidQuotaOrTimeHeader) return false;
     }
 
     const averageWordCount = totalFilledLines > 0 ? (totalWordCount / totalFilledLines) : 0;

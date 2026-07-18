@@ -65,6 +65,14 @@ describe('Parser Service Tests', () => {
             const msg = `00.00 : 5 orang\n1.\n2.`;
             expect(parser.isShiftOpening(msg)).toBe(true);
         });
+
+        test('harus mendeteksi pembukaan shift jika kuota angka spesifik dikosongkan oleh admin seperti 00.00 :  orang', () => {
+            const msg = `Dear Team\nPlease provide DW SOC Padang Under Vendor\n[PSD]\n17 Juli 2026\n\n00.00 :  orang`;
+            expect(parser.isShiftOpening(msg)).toBe(true);
+
+            const result = parser.registerUserInTemplate(msg, 'Daeng', '2015150');
+            expect(result).toContain('1. Daeng 2015150');
+        });
     });
 
     describe('isUserAlreadyRegistered', () => {
