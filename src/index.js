@@ -605,17 +605,7 @@ client1.on('message_create', async (msg) => {
             if (regResult1.success && regResult1.replyText) {
                 logToDashboard(`[Akun 1] Pendaftaran diproses: ${regResult1.message}`);
 
-                try {
-                    const chat = await msg.getChat();
-                    await chat.sendStateTyping();
-                } catch (err) {
-                    // Abaikan secara aman
-                }
-
-                // Mengatur jeda kompetitif mengetik (1.0 s.d 1.8 detik)
-                const competitiveDelayMs = Math.floor(Math.random() * (1800 - 1000 + 1)) + 1000;
-                logToDashboard(`[Akun 1] Mengetik selama ${competitiveDelayMs / 1000} detik sebelum mengirim...`);
-                await new Promise(resolve => setTimeout(resolve, competitiveDelayMs));
+                logToDashboard('[Akun 1] Mengirim pendaftaran secara instan...');
 
                 // Sinkronisasi detik terakhir menggunakan cache
                 if (cache.length > 0) {
