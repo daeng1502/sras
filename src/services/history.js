@@ -19,7 +19,6 @@ function logEvent(action, details) {
     const logLine = `[${timestamp}] [${action.toUpperCase()}] ${details}\n`;
     try {
         fs.appendFileSync(config.historyPath, logLine, 'utf8');
-        console.log(`[LOG] [${action.toUpperCase()}] ${details}`);
         return true;
     } catch (error) {
         console.error('Gagal menulis ke history.log:', error.message);

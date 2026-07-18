@@ -64,24 +64,24 @@ function processVerification(text, cache = null, quotedText = null) {
     if (isShortDone) {
         let foundNameInQuoted = false;
         if (quotedText) {
-            console.log('[VERIFIKASI] Mendeteksi pesan "done" pendek dengan reply. Menganalisis pesan yang di-reply...');
+            historyLogger.logEvent('VERIFY-DEBUG', 'Mendeteksi pesan "done" pendek dengan reply. Menganalisis pesan yang di-reply...');
             const lowerQuoted = quotedText.toLowerCase();
             if (lowerQuoted.includes(cleanUserName) || lowerQuoted.includes(cleanOptId)) {
                 textToAnalyze = quotedText;
                 foundNameInQuoted = true;
-                console.log('[VERIFIKASI] Nama pengguna ditemukan di dalam pesan reply.');
+                historyLogger.logEvent('VERIFY-DEBUG', 'Nama pengguna ditemukan di dalam pesan reply.');
             } else {
-                console.log('[VERIFIKASI] Nama pengguna tidak ditemukan di dalam pesan reply. Melakukan fallback ke pencarian cache...');
+                historyLogger.logEvent('VERIFY-DEBUG', 'Nama pengguna tidak ditemukan di dalam pesan reply. Melakukan fallback ke pencarian cache...');
             }
         }
 
         if (!foundNameInQuoted && cache && Array.isArray(cache)) {
             if (!quotedText) {
-                console.log('[VERIFIKASI] Mendeteksi pesan "done" pendek tanpa reply. Mencari daftar nama terakhir di cache lokal...');
+                historyLogger.logEvent('VERIFY-DEBUG', 'Mendeteksi pesan "done" pendek tanpa reply. Mencari daftar nama terakhir di cache lokal...');
             }
-            console.log(`[VERIFIKASI] Cache length: ${cache.length}`);
+            historyLogger.logEvent('VERIFY-DEBUG', `Cache length: ${cache.length}`);
             const cacheBodies = cache.map((c, idx) => `[${idx}]: "${c.body.replace(/\n/g, ' ').slice(0, 60)}..."`).join(' | ');
-            console.log(`[VERIFIKASI] Cache items: ${cacheBodies}`);
+            historyLogger.logEvent('VERIFY-DEBUG', `Cache items: ${cacheBodies}`);
             historyLogger.logEvent('DEBUG-CACHE', `Cache length: ${cache.length} | Items: ${cacheBodies}`);
             // Cari dari belakang cache untuk menemukan pesan list pendaftaran terakhir
             for (let i = cache.length - 1; i >= 0; i--) {
@@ -91,7 +91,7 @@ function processVerification(text, cache = null, quotedText = null) {
                                        body.toLowerCase().includes(cleanUserName) || 
                                        body.toLowerCase().includes(cleanOptId);
                 if (isProbablyList) {
-                    console.log('[VERIFIKASI] Menemukan daftar nama terakhir di cache lokal.');
+                    historyLogger.logEvent('VERIFY-DEBUG', 'Menemukan daftar nama terakhir di cache lokal.');
                     textToAnalyze = body;
                     break;
                 }
@@ -101,8 +101,8 @@ function processVerification(text, cache = null, quotedText = null) {
 
     const lowerTextToAnalyze = textToAnalyze.toLowerCase();
 
-    console.log(`[DIAGNOSTIK-VERIFY] Teks analisis (panjang: ${textToAnalyze.length}):\n${textToAnalyze}`);
-    console.log(`[DIAGNOSTIK-VERIFY] Mencari username: "${cleanUserName}" | OPT ID: "${cleanOptId}"`);
+    historyLogger.logEvent('VERIFY-DEBUG', `Teks analisis (panjang: ${textToAnalyze.length}): ${textToAnalyze.replace(/\n/g, ' ')}`);
+    historyLogger.logEvent('VERIFY-DEBUG', `Mencari username: "${cleanUserName}" | OPT ID: "${cleanOptId}"`);
 
 
 
@@ -115,7 +115,7 @@ function processVerification(text, cache = null, quotedText = null) {
 
     // Cek keberadaan nama/ID pengguna di dalam teks yang dianalisis
     const isNameInText = lowerTextToAnalyze.includes(cleanUserName) || lowerTextToAnalyze.includes(cleanOptId);
-    console.log(`[DIAGNOSTIK-VERIFY] Hasil pencarian nama: ${isNameInText}`);
+    historyLogger.logEvent('VERIFY-DEBUG', `Hasil pencarian nama: ${isNameInText}`);
 
 
     if (isNameInText) {
