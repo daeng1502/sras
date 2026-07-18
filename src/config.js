@@ -130,7 +130,7 @@ if (fs.readdirSync(profilesDir).length === 0) {
         optId: "2015000",
         hp: "628123456789"
     };
-    fs.writeFileSync(path.join(profilesDir, 'template_daeng.json.example'), JSON.stringify(example, null, 2));
+    fs.writeFileSync(path.join(profilesDir, 'profile.json.example'), JSON.stringify(example, null, 2));
 }
 
 module.exports = config;
