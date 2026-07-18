@@ -166,8 +166,8 @@ function logToDashboard(message) {
 }
 
 function redrawDashboard() {
-    // Bersihkan layar secara fisik dan kembalikan kursor ke pojok kiri atas (0,0)
-    process.stdout.write('\x1B[2J\x1B[H');
+    // Pindahkan kursor ke pojok kiri atas (0,0) tanpa menghapus layar untuk mencegah kedipan (Anti-Flicker)
+    process.stdout.write('\x1B[H');
     const store = storeManager.readStore();
     const currentStatus = store.status || 'ELIGIBLE';
     const currentShift = store.shiftTitle || 'Belum Ada';
@@ -206,6 +206,9 @@ function redrawDashboard() {
     }
     console.log('============================================================');
     console.log('Tekan Ctrl+C untuk menghentikan pemantauan.');
+
+    // Bersihkan sisa baris di bawahnya jika ada (menghindari sisa karakter teks lama)
+    readline.clearScreenDown(process.stdout);
 }
 
 // Event ketika client siap menerima pesan
@@ -265,6 +268,10 @@ client.on('ready', async () => {
     }
 
     historyLogger.logEvent('SYSTEM', 'Bot mulai memantau grup.');
+    
+    // Masuk ke mode Alternate Screen Buffer (Layar alternatif bersih, tanpa scrollback)
+    process.stdout.write('\x1B[?1049h\x1B[H');
+    
     logToDashboard('Bot terhubung dan siap memantau grup.');
     
     // Jalankan pembaruan waktu dasbor otomatis setiap 10 detik
@@ -529,6 +536,20 @@ client.on('message_create', async (msg) => {
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     historyLogger.logEvent('ERROR', `Unhandled Rejection: ${reason}`);
+});
+
+// Kembalikan layar normal ketika proses keluar/dihentikan dari mode alternate buffer (Anti-Jejak Scroll)
+const restoreScreen = () => {
+    process.stdout.write('\x1B[?1049l');
+};
+process.on('exit', restoreScreen);
+process.on('SIGINT', () => {
+    restoreScreen();
+    process.exit(0);
+});
+process.on('SIGTERM', () => {
+    restoreScreen();
+    process.exit(0);
 });
 
 /**
