@@ -181,41 +181,41 @@ function redrawDashboard() {
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
     
-    // Rangkai seluruh baris dasbor menjadi satu string tunggal (Atomic Buffer) untuk mencegah tabrakan I/O
+    // Rangkai seluruh baris dasbor menjadi satu string tunggal (Atomic Buffer) dengan kode pembersih sisa baris (\x1B[K)
     let output = '';
     output += '\x1B[H'; // Pindahkan kursor ke pojok kiri atas (0,0) tanpa menghapus layar
-    output += '============================================================\n';
-    output += '                 SRAS PANEL - MONITORING SHIFT              \n';
-    output += '============================================================\n';
-    output += ` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED\n`;
-    output += '------------------------------------------------------------\n';
-    output += '  PROFIL PENGGUNA:\n';
-    output += `  • Nama        : ${config.userName}\n`;
-    output += `  • ID OPT      : ${config.userOptId}\n`;
-    output += `  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}\n`;
-    output += '  \n';
-    output += '  KONFIGURASI MONITOR:\n';
+    output += '============================================================\x1B[K\n';
+    output += '                 SRAS PANEL - MONITORING SHIFT              \x1B[K\n';
+    output += '============================================================\x1B[K\n';
+    output += ` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED\x1B[K\n`;
+    output += '------------------------------------------------------------\x1B[K\n';
+    output += '  PROFIL PENGGUNA:\x1B[K\n';
+    output += `  • Nama        : ${config.userName}\x1B[K\n`;
+    output += `  • ID OPT      : ${config.userOptId}\x1B[K\n`;
+    output += `  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}\x1B[K\n`;
+    output += '  \x1B[K\n';
+    output += '  KONFIGURASI MONITOR:\x1B[K\n';
     const kwString = config.targetShiftKeywords && config.targetShiftKeywords.length > 0
         ? config.targetShiftKeywords.join(', ')
         : 'Semua Shift (Tanpa Filter)';
-    output += `  • Kata Kunci  : ${kwString}\n`;
+    output += `  • Kata Kunci  : ${kwString}\x1B[K\n`;
     const sendMode = isAutoSendEnabled ? 'OTOMATIS (Mode Auto-Register)' : 'PANTAU SAJA (Alarm Tanpa Chat)';
-    output += `  • Kirim Chat  : ${sendMode}\n`;
-    output += '  \n';
-    output += '  STATUS VERIFIKASI:\n';
-    output += `  • Status Saat Ini : [ ${currentStatus} ]\n`;
-    output += `  • Shift Terpilih  : ${currentShift}\n`;
-    output += '------------------------------------------------------------\n';
-    output += '  AKTIVITAS TERBARU (LOG LOKAL):\n';
+    output += `  • Kirim Chat  : ${sendMode}\x1B[K\n`;
+    output += '  \x1B[K\n';
+    output += '  STATUS VERIFIKASI:\x1B[K\n';
+    output += `  • Status Saat Ini : [ ${currentStatus} ]\x1B[K\n`;
+    output += `  • Shift Terpilih  : ${currentShift}\x1B[K\n`;
+    output += '------------------------------------------------------------\x1B[K\n';
+    output += '  AKTIVITAS TERBARU (LOG LOKAL):\x1B[K\n';
     if (recentLogs.length === 0) {
-        output += '  (Belum ada aktivitas)\n';
+        output += '  (Belum ada aktivitas)\x1B[K\n';
     } else {
         recentLogs.forEach(log => {
-            output += `  ${log}\n`;
+            output += `  ${log}\x1B[K\n`;
         });
     }
-    output += '============================================================\n';
-    output += 'Tekan Ctrl+C untuk menghentikan pemantauan.\n';
+    output += '============================================================\x1B[K\n';
+    output += 'Tekan Ctrl+C untuk menghentikan pemantauan.\x1B[K\n';
 
     // Cetak seluruh string dasbor dalam satu operasi I/O tunggal
     process.stdout.write(output);
