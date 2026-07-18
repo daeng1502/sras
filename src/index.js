@@ -26,7 +26,7 @@ puppeteer.launch = async function(options) {
 };
 console.log('[SYSTEM-PUPPETEER] Pemblokiran media (gambar/video/font) aktif untuk menghemat kuota internet.');
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const readline = require('readline');
 const fs = require('fs');
@@ -458,6 +458,7 @@ async function handleWhatsAppCommand(msg) {
                         `• \`#mode <single/dual>\` - Ganti mode akun\n` +
                         `• \`#autosend <on/off>\` - Toggle kirim pendaftaran otomatis\n` +
                         `• \`#reset\` - Reset status harian\n` +
+                        `• \`#ss [1/2]\` - Kirim screenshot halaman WA Web\n` +
                         `• \`#help\` - Tampilkan bantuan ini`;
             break;
 
@@ -545,6 +546,38 @@ async function handleWhatsAppCommand(msg) {
             replyText = `✅ *Status pendaftaran harian berhasil di-reset menjadi NULL.* Anda sekarang dapat mensimulasikan ulang pendaftaran hari ini.`;
             triggerRedraw();
             break;
+
+        case '#ss':
+        case '#ss1':
+        case '#ss2': {
+            const isTarget2 = command === '#ss2' || args.trim() === '2';
+            const targetClient = isTarget2 ? client2 : client1;
+            const targetLabel = isTarget2 ? 'AKUN 2' : 'AKUN 1';
+            
+            if (isTarget2 && !isMultiAccountMode) {
+                replyText = `⚠️ *Gagal*: Akun 2 tidak aktif dalam mode saat ini.`;
+                break;
+            }
+
+            try {
+                const page = await targetClient.pupPage;
+                if (!page) {
+                    replyText = `⚠️ *Gagal*: Halaman browser ${targetLabel} tidak tersedia.`;
+                    break;
+                }
+
+                logToDashboard(`Mengambil screenshot ${targetLabel}...`);
+                const screenshotBase64 = await page.screenshot({ encoding: 'base64' });
+                const media = new MessageMedia('image/png', screenshotBase64, 'screenshot.png');
+                
+                await msg.reply(media, undefined, { caption: `📸 *Screenshot halaman WhatsApp Web (${targetLabel})*` });
+                logToDashboard(`Screenshot ${targetLabel} berhasil dikirim.`);
+                return;
+            } catch (err) {
+                replyText = `⚠️ *Gagal mengambil screenshot ${targetLabel}*: ${err.message}`;
+            }
+            break;
+        }
 
         default:
             return;
