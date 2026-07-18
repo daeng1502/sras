@@ -175,48 +175,52 @@ function logToDashboard(message) {
 }
 
 function redrawDashboard() {
-    // Pindahkan kursor ke pojok kiri atas (0,0) tanpa menghapus layar untuk mencegah kedipan (Anti-Flicker)
-    process.stdout.write('\x1B[H');
     const store = storeManager.readStore();
     const currentStatus = store.status || 'ELIGIBLE';
     const currentShift = store.shiftTitle || 'Belum Ada';
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
     
-    console.log('============================================================');
-    console.log('                 SRAS PANEL - MONITORING SHIFT              ');
-    console.log('============================================================');
-    console.log(` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED`);
-    console.log('------------------------------------------------------------');
-    console.log('  PROFIL PENGGUNA:');
-    console.log(`  • Nama        : ${config.userName}`);
-    console.log(`  • ID OPT      : ${config.userOptId}`);
-    console.log(`  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}`);
-    console.log('  ');
-    console.log('  KONFIGURASI MONITOR:');
+    // Rangkai seluruh baris dasbor menjadi satu string tunggal (Atomic Buffer) untuk mencegah tabrakan I/O
+    let output = '';
+    output += '\x1B[H'; // Pindahkan kursor ke pojok kiri atas (0,0) tanpa menghapus layar
+    output += '============================================================\n';
+    output += '                 SRAS PANEL - MONITORING SHIFT              \n';
+    output += '============================================================\n';
+    output += ` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED\n`;
+    output += '------------------------------------------------------------\n';
+    output += '  PROFIL PENGGUNA:\n';
+    output += `  • Nama        : ${config.userName}\n`;
+    output += `  • ID OPT      : ${config.userOptId}\n`;
+    output += `  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}\n`;
+    output += '  \n';
+    output += '  KONFIGURASI MONITOR:\n';
     const kwString = config.targetShiftKeywords && config.targetShiftKeywords.length > 0
         ? config.targetShiftKeywords.join(', ')
         : 'Semua Shift (Tanpa Filter)';
-    console.log(`  • Kata Kunci  : ${kwString}`);
+    output += `  • Kata Kunci  : ${kwString}\n`;
     const sendMode = isAutoSendEnabled ? 'OTOMATIS (Mode Auto-Register)' : 'PANTAU SAJA (Alarm Tanpa Chat)';
-    console.log(`  • Kirim Chat  : ${sendMode}`);
-    console.log('  ');
-    console.log('  STATUS VERIFIKASI:');
-    console.log(`  • Status Saat Ini : [ ${currentStatus} ]`);
-    console.log(`  • Shift Terpilih  : ${currentShift}`);
-    console.log('------------------------------------------------------------');
-    console.log('  AKTIVITAS TERBARU (LOG LOKAL):');
+    output += `  • Kirim Chat  : ${sendMode}\n`;
+    output += '  \n';
+    output += '  STATUS VERIFIKASI:\n';
+    output += `  • Status Saat Ini : [ ${currentStatus} ]\n`;
+    output += `  • Shift Terpilih  : ${currentShift}\n`;
+    output += '------------------------------------------------------------\n';
+    output += '  AKTIVITAS TERBARU (LOG LOKAL):\n';
     if (recentLogs.length === 0) {
-        console.log('  (Belum ada aktivitas)');
+        output += '  (Belum ada aktivitas)\n';
     } else {
         recentLogs.forEach(log => {
-            console.log(`  ${log}`);
+            output += `  ${log}\n`;
         });
     }
-    console.log('============================================================');
-    console.log('Tekan Ctrl+C untuk menghentikan pemantauan.');
+    output += '============================================================\n';
+    output += 'Tekan Ctrl+C untuk menghentikan pemantauan.\n';
 
-    // Bersihkan sisa baris di bawahnya jika ada (menghindari sisa karakter teks lama)
+    // Cetak seluruh string dasbor dalam satu operasi I/O tunggal
+    process.stdout.write(output);
+
+    // Bersihkan sisa baris di bawahnya jika ada
     readline.clearScreenDown(process.stdout);
 }
 
