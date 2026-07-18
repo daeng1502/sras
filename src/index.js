@@ -67,8 +67,9 @@ if (chromiumPath) {
 }
 
 // Inisialisasi WhatsApp Client dengan autentikasi lokal & remote cache version
-const client = new Client({
+const client1 = new Client({
     authStrategy: new LocalAuth({
+        clientId: 'user1',
         dataPath: './.wwebjs_auth'
     }),
     webVersion: '2.2412.54',
@@ -100,57 +101,90 @@ const client = new Client({
     }
 });
 
-// Event ketika QR Code didapatkan untuk dipindai
-client.on('qr', async (qr) => {
-    // Jika nomor HP dikonfigurasi di .env, gunakan Pairing Code
-    if (config.userHp) {
-        console.log(`\n[LINKING] Meminta kode penautan untuk nomor HP: ${config.userHp}...`);
-        try {
-            let code = null;
-            let retries = 3;
-            while (retries > 0) {
-                try {
-                    // Tunggu 3 detik agar sistem penautan internal WA Web siap penuh
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                    code = await client.requestPairingCode(config.userHp);
-                    break;
-                } catch (retryErr) {
-                    retries--;
-                    if (retries === 0) throw retryErr;
-                    console.log(`[LINKING] API Penautan belum siap. Mencoba kembali (${3 - retries}/3)...`);
-                }
-            }
-
-            console.log(`\n========================================`);
-            console.log(`   KODE PENAUTAN WHATSAPP: ${code.slice(0, 4)}-${code.slice(4)}`);
-            console.log(`========================================`);
-            console.log(`Silakan buka WhatsApp di HP Anda:`);
-            console.log(`1. Buka Perangkat Tertaut (Linked Devices).`);
-            console.log(`2. Ketuk "Tautkan dengan nomor telepon" (Link with phone number).`);
-            console.log(`3. Masukkan kode di atas.`);
-            console.log(`========================================\n`);
-        } catch (err) {
-            console.error('[ERROR] Gagal meminta kode penautan setelah beberapa kali percobaan:', err.message || err);
-            console.log('\n[FALLBACK] Beralih ke QR Code sebagai cadangan...');
-            // Fallback ke QR jika request pairing code tetap gagal
-            qrcode.generate(qr, { small: true });
-        }
-    } else {
-        // Tampilkan QR Code jika USER_HP tidak diisi
-        console.log('\n[QR] QR Code terdeteksi! Silakan pindai menggunakan WhatsApp HP Anda:');
-        qrcode.generate(qr, { small: true });
+const client2 = new Client({
+    authStrategy: new LocalAuth({
+        clientId: 'user2',
+        dataPath: './.wwebjs_auth'
+    }),
+    webVersion: '2.2412.54',
+    webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
+    },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    puppeteer: {
+        executablePath: chromiumPath,
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu',
+            '--disable-software-rasterizer',
+            '--disable-extensions',
+            '--mute-audio',
+            '--no-default-browser-check',
+            '--disable-background-networking',
+            '--disable-renderer-backgrounding',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows'
+        ]
     }
 });
 
-// Event ketika otentikasi berhasil
-client.on('authenticated', () => {
-    console.log('[AUTH] Autentikasi berhasil!');
-});
+function setupClientListeners(clientInstance, userLabel, userHp) {
+    clientInstance.on('qr', async (qr) => {
+        if (userHp) {
+            console.log(`\n[LINKING - ${userLabel}] Meminta kode penautan untuk nomor HP: ${userHp}...`);
+            try {
+                let code = null;
+                let retries = 3;
+                while (retries > 0) {
+                    try {
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        code = await clientInstance.requestPairingCode(userHp);
+                        break;
+                    } catch (retryErr) {
+                        retries--;
+                        if (retries === 0) throw retryErr;
+                        console.log(`[LINKING - ${userLabel}] API Penautan belum siap. Mencoba kembali (${3 - retries}/3)...`);
+                    }
+                }
 
-client.on('auth_failure', (msg) => {
-    console.error('[AUTH] Otentikasi gagal:', msg);
-    historyLogger.logEvent('ERROR', `Autentikasi gagal: ${msg}`);
-});
+                console.log(`\n========================================`);
+                console.log(`   [${userLabel}] KODE PENAUTAN: ${code.slice(0, 4)}-${code.slice(4)}`);
+                console.log(`========================================`);
+                console.log(`Silakan buka WhatsApp di HP [${userLabel}]:`);
+                console.log(`1. Buka Perangkat Tertaut (Linked Devices).`);
+                console.log(`2. Ketuk "Tautkan dengan nomor telepon" (Link with phone number).`);
+                console.log(`3. Masukkan kode di atas.`);
+                console.log(`========================================\n`);
+            } catch (err) {
+                console.error(`[ERROR - ${userLabel}] Gagal meminta kode penautan:`, err.message || err);
+                console.log(`\n[FALLBACK - ${userLabel}] Beralih ke QR Code sebagai cadangan...`);
+                qrcode.generate(qr, { small: true });
+            }
+        } else {
+            console.log(`\n[QR - ${userLabel}] QR Code terdeteksi! Silakan pindai menggunakan WhatsApp HP Anda:`);
+            qrcode.generate(qr, { small: true });
+        }
+    });
+
+    clientInstance.on('authenticated', () => {
+        console.log(`[AUTH - ${userLabel}] Autentikasi berhasil!`);
+    });
+
+    clientInstance.on('auth_failure', (msg) => {
+        console.error(`[AUTH - ${userLabel}] Otentikasi gagal:`, msg);
+        historyLogger.logEvent('ERROR', `Autentikasi gagal [${userLabel}]: ${msg}`);
+    });
+}
+
+setupClientListeners(client1, 'AKUN 1', config.user1.hp);
+setupClientListeners(client2, 'AKUN 2', config.user2.hp);
 
 // Variabel state lokal (menghindari pemanggilan getChat / getChats CDP Puppeteer yang rawan bug 'r')
 let targetGroupJid = null;
@@ -177,8 +211,6 @@ function logToDashboard(message) {
 
 function redrawDashboard() {
     const store = storeManager.readStore();
-    const currentStatus = store.status || 'ELIGIBLE';
-    const currentShift = store.registeredShiftId || 'Belum Ada';
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
     
@@ -186,26 +218,39 @@ function redrawDashboard() {
     let output = '';
     output += '\x1B[H'; // Pindahkan kursor ke pojok kiri atas (0,0) tanpa menghapus layar
     output += '============================================================\x1B[K\n';
-    output += '                 SRAS PANEL - MONITORING SHIFT              \x1B[K\n';
+    output += '             SRAS PANEL - DUAL-ACCOUNT MONITORING           \x1B[K\n';
     output += '============================================================\x1B[K\n';
     output += ` WAKTU: ${dateStr} ${timeStr} | PHANTOM LIMIT: UNLIMITED | DATA: SAVED\x1B[K\n`;
     output += '------------------------------------------------------------\x1B[K\n';
-    output += '  PROFIL PENGGUNA:\x1B[K\n';
-    output += `  • Nama        : ${config.userName}\x1B[K\n`;
-    output += `  • ID OPT      : ${config.userOptId}\x1B[K\n`;
-    output += `  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}\x1B[K\n`;
+    
+    // Profil Akun 1
+    const s1 = store.user1 || { status: 'NULL', registeredShiftId: null };
+    output += '  PROFIL AKUN 1 (MASTER):\x1B[K\n';
+    output += `  • Nama        : ${config.user1.name}\x1B[K\n`;
+    output += `  • ID OPT      : ${config.user1.optId}\x1B[K\n`;
+    output += `  • Status      : [ ${s1.status} ]\x1B[K\n`;
+    output += `  • Shift       : ${s1.registeredShiftId || 'Belum Ada'}\x1B[K\n`;
     output += '  \x1B[K\n';
+
+    // Profil Akun 2
+    if (config.user2.name) {
+        const s2 = store.user2 || { status: 'NULL', registeredShiftId: null };
+        output += '  PROFIL AKUN 2 (MEMBER):\x1B[K\n';
+        output += `  • Nama        : ${config.user2.name}\x1B[K\n`;
+        output += `  • ID OPT      : ${config.user2.optId}\x1B[K\n`;
+        output += `  • Status      : [ ${s2.status} ]\x1B[K\n`;
+        output += `  • Shift       : ${s2.registeredShiftId || 'Belum Ada'}\x1B[K\n`;
+        output += '  \x1B[K\n';
+    }
+
     output += '  KONFIGURASI MONITOR:\x1B[K\n';
     const kwString = config.targetShiftKeywords && config.targetShiftKeywords.length > 0
         ? config.targetShiftKeywords.join(', ')
         : 'Semua Shift (Tanpa Filter)';
     output += `  • Kata Kunci  : ${kwString}\x1B[K\n`;
-    const sendMode = isAutoSendEnabled ? 'OTOMATIS (Mode Auto-Register)' : 'PANTAU SAJA (Alarm Tanpa Chat)';
+    const sendMode = isAutoSendEnabled ? 'OTOMATIS (Sequential Register)' : 'PANTAU SAJA (Alarm Tanpa Chat)';
     output += `  • Kirim Chat  : ${sendMode}\x1B[K\n`;
-    output += '  \x1B[K\n';
-    output += '  STATUS VERIFIKASI:\x1B[K\n';
-    output += `  • Status Saat Ini : [ ${currentStatus} ]\x1B[K\n`;
-    output += `  • Shift Terpilih  : ${currentShift}\x1B[K\n`;
+    output += `  • Target JID  : ${targetGroupJid || config.targetGroupName || 'Mencari JID...'}\x1B[K\n`;
     output += '------------------------------------------------------------\x1B[K\n';
     output += '  AKTIVITAS TERBARU (LOG LOKAL):\x1B[K\n';
     if (recentLogs.length === 0) {
@@ -225,18 +270,18 @@ function redrawDashboard() {
     readline.clearScreenDown(process.stdout);
 }
 
-// Event ketika client siap menerima pesan
-client.on('ready', async () => {
-    console.log('\n[READY] WhatsApp Client siap dan aktif!');
-    historyLogger.logEvent('SYSTEM', 'Bot terhubung dan siap.');
+let isClient1Ready = false;
+let isClient2Ready = false;
+let isStarted = false;
 
+async function checkTargetJid() {
     try {
         console.log(`[SYSTEM] Mencari JID grup target "${config.targetGroupName}"...`);
         if (config.targetGroupName && (config.targetGroupName.endsWith('@g.us') || /^\d+-\d+@g\.us$/.test(config.targetGroupName))) {
             targetGroupJid = config.targetGroupName;
             console.log(`[SYSTEM] Target grup berhasil dikunci via JID langsung! JID: "${targetGroupJid}"`);
         } else {
-            const chats = await client.getChats();
+            const chats = await client1.getChats();
             const targetChat = chats.find(c => c.isGroup && c.name && c.name.toLowerCase().includes(config.targetGroupName.toLowerCase()));
             if (targetChat) {
                 targetGroupJid = targetChat.id._serialized;
@@ -248,14 +293,22 @@ client.on('ready', async () => {
     } catch (e) {
         console.log(`[DIAGNOSTIK] Gagal memuat JID grup di awal: ${e.message || e}`);
     }
+}
+
+async function startSystemMonitoring() {
+    if (isStarted) return;
+    isStarted = true;
+
+    await checkTargetJid();
 
     console.log('\n==================================================');
-    console.log('          MEMULAI MONITORING SHIFT');
+    console.log('          MEMULAI MONITORING SHIFT DUAL-AKUN');
     console.log('==================================================');
-    console.log(`Pengguna: ${config.userName} (${config.userOptId})`);
-    console.log(`Grup Target: ${config.targetGroupName}`);
-    const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
-    console.log(`Daftar Admin: ${adminsString}`);
+    console.log(`Akun 1 (Master) : ${config.user1.name} (${config.user1.optId})`);
+    if (config.user2.name) {
+        console.log(`Akun 2 (Member) : ${config.user2.name} (${config.user2.optId})`);
+    }
+    console.log(`Grup Target     : ${config.targetGroupName}`);
 
     const answer = await askQuestion('\n[INPUT] Masukkan kata kunci shift target (contoh: 11.00 atau malam, tekan ENTER untuk memantau semua): ');
     const inputKeywords = answer.trim()
@@ -275,7 +328,7 @@ client.on('ready', async () => {
     const cleanAutoSend = autoSendAns.trim().toLowerCase();
     if (cleanAutoSend === 'y' || cleanAutoSend === 'yes') {
         isAutoSendEnabled = true;
-        console.log('[INFO] MODE OTOMATIS aktif. Bot akan membunyikan alarm dan mengirim chat otomatis ke grup.');
+        console.log('[INFO] MODE OTOMATIS aktif. Bot akan membunyikan alarm dan mengirim pendaftaran berurutan.');
     } else {
         isAutoSendEnabled = false;
         console.log('[INFO] MODE PANTAU SAJA aktif. Bot hanya akan membunyikan alarm tanpa mengirim chat otomatis.');
@@ -292,10 +345,65 @@ client.on('ready', async () => {
     setInterval(() => {
         triggerRedraw();
     }, 10000);
+}
+
+// Event ketika client siap menerima pesan
+client1.on('ready', async () => {
+    isClient1Ready = true;
+    console.log('\n[READY] WhatsApp Client 1 (Master) siap dan aktif!');
+    historyLogger.logEvent('SYSTEM', 'Akun 1 terhubung dan siap.');
+
+    if (config.user2.name && !isClient2Ready) {
+        console.log('[SYSTEM] Menginisialisasi koneksi WhatsApp Client 2 (Member)...');
+        client2.initialize().catch(err => {
+            console.error('[ERROR] Gagal menginisialisasi client 2:', err);
+            startSystemMonitoring();
+        });
+    } else {
+        startSystemMonitoring();
+    }
 });
 
-// Mendengarkan pesan masuk & pesan keluar (message_create)
-client.on('message_create', async (msg) => {
+client2.on('ready', async () => {
+    isClient2Ready = true;
+    console.log('\n[READY] WhatsApp Client 2 (Member) siap dan aktif!');
+    historyLogger.logEvent('SYSTEM', 'Akun 2 terhubung dan siap.');
+    startSystemMonitoring();
+});
+
+async function triggerAccount2Registration(baseText, groupJid) {
+    if (!config.user2.name) return;
+    
+    // Cek kelayakan Akun 2
+    const regResult2 = registrator.processRegistration(baseText, 'user2');
+    if (regResult2.success) {
+        if (!regResult2.replyText) {
+            logToDashboard('[Akun 2] Nama sudah terdaftar di list (Diabaikan).');
+            return;
+        }
+
+        const competitiveDelay2 = Math.floor(Math.random() * (1800 - 1000 + 1)) + 1000;
+        logToDashboard(`[Akun 2] Mengetik selama ${competitiveDelay2 / 1000} detik sebelum mengirim...`);
+        
+        await new Promise(resolve => setTimeout(resolve, competitiveDelay2));
+
+        if (isAutoSendEnabled) {
+            try {
+                await client2.sendMessage(groupJid, regResult2.replyText);
+                logToDashboard('[Akun 2] Pendaftaran terkoordinasi berhasil terkirim!');
+            } catch (err) {
+                logToDashboard(`[Akun 2] Gagal mengirim pendaftaran Akun 2: ${err.message}`);
+            }
+        } else {
+            logToDashboard('[Akun 2] Pendaftaran dibunyikan (Mode Pantau Saja).');
+        }
+    } else {
+        logToDashboard(`[Akun 2] Dilewati: ${regResult2.message}`);
+    }
+}
+
+// Mendengarkan pesan masuk & pesan keluar (message_create) menggunakan client1 selaku Master
+client1.on('message_create', async (msg) => {
     try {
         // 1. Validasi apakah pesan berasal dari grup (Offline & cepat)
         const groupJid = msg.from.endsWith('@g.us') ? msg.from : (msg.to && msg.to.endsWith('@g.us') ? msg.to : null);
@@ -326,7 +434,7 @@ client.on('message_create', async (msg) => {
         // Jika pesan dikirim oleh bot sendiri, cukup masukkan ke cache lalu hentikan proses
         if (msg.fromMe) return;
 
-        // 2. Deteksi apakah pengirim adalah salah satu admin yang dipantau (dinamis & fleksibel terhadap suffix @c.us / @lid / Phone vs LID mapping)
+        // 2. Deteksi apakah pengirim adalah salah satu admin yang dipantau
         const senderId = msg.author;
         let senderContactNumber = '';
         try {
@@ -356,7 +464,7 @@ client.on('message_create', async (msg) => {
                 }
             } else if (!targetGroupJid) {
                 try {
-                    const chats = await client.getChats();
+                    const chats = await client1.getChats();
                     const currentChat = chats.find(c => c.id._serialized === msg.from);
                     if (currentChat && currentChat.isGroup && currentChat.name && currentChat.name.toLowerCase().includes(config.targetGroupName.toLowerCase())) {
                         targetGroupJid = msg.from;
@@ -387,7 +495,7 @@ client.on('message_create', async (msg) => {
                 // Verifikasi peran admin grup menggunakan cache chat list
                 let isVerifiedAdmin = false;
                 try {
-                    const chats = await client.getChats();
+                    const chats = await client1.getChats();
                     const targetChat = chats.find(c => c.id._serialized === msg.from);
                     if (targetChat && targetChat.isGroup && targetChat.participants) {
                         const participant = targetChat.participants.find(p => p.id._serialized === senderId);
@@ -442,33 +550,51 @@ client.on('message_create', async (msg) => {
         if (parser.isShiftOpening(messageText)) {
             logToDashboard('Pesan pembukaan shift baru terdeteksi!');
             
-            const regResult = registrator.processRegistration(messageText);
-            
-            if (regResult.success) {
-                logToDashboard(`Pendaftaran diproses: ${regResult.message}`);
-                
-                if (!regResult.replyText) {
-                    logToDashboard('Nama Anda sudah terdaftar di list (Diabaikan).');
-                    return;
+            let user1Sent = false;
+            let textToSend1 = null;
+
+            const regResult1 = registrator.processRegistration(messageText, 'user1');
+            if (regResult1.success && regResult1.replyText) {
+                textToSend1 = regResult1.replyText;
+            }
+
+            // Pasang pengaman (Safety Timeout) 3 detik untuk Akun 2
+            const safetyTimeout = setTimeout(async () => {
+                if (!user1Sent && config.user2.name) {
+                    const store = storeManager.readStore();
+                    const s2 = store.user2 || { status: 'NULL' };
+                    if (s2.status !== 'WAITING_VERIFICATION' && s2.status !== 'ACCEPTED') {
+                        logToDashboard('[WARNING] Akun 1 lambat/terhambat. Mendaftarkan Akun 2 secara mandiri...');
+                        const regResult2 = registrator.processRegistration(messageText, 'user2');
+                        if (regResult2.success && regResult2.replyText && isAutoSendEnabled) {
+                            try {
+                                await client2.sendMessage(msg.from, regResult2.replyText);
+                                logToDashboard('[Akun 2] Pendaftaran mandiri berhasil terkirim!');
+                            } catch (err) {
+                                logToDashboard(`[Akun 2] Gagal mengirim pendaftaran mandiri: ${err.message}`);
+                            }
+                        }
+                    }
                 }
+            }, 3000);
+
+            if (regResult1.success && regResult1.replyText) {
+                logToDashboard(`[Akun 1] Pendaftaran diproses: ${regResult1.message}`);
 
                 try {
-                    // Pemicu status "Sedang Mengetik..." di grup WA secara instan untuk kamuflase alami
                     const chat = await msg.getChat();
                     await chat.sendStateTyping();
                 } catch (err) {
-                    // Diabaikan secara aman jika getChat() memicu error
+                    // Abaikan secara aman
                 }
 
-                // Mengatur jeda yang sangat cepat namun tetap aman (1.0 s.d 1.8 detik)
+                // Mengatur jeda kompetitif mengetik (1.0 s.d 1.8 detik)
                 const competitiveDelayMs = Math.floor(Math.random() * (1800 - 1000 + 1)) + 1000;
-                logToDashboard(`Mengetik selama ${competitiveDelayMs / 1000} detik sebelum mengirim...`);
+                logToDashboard(`[Akun 1] Mengetik selama ${competitiveDelayMs / 1000} detik sebelum mengirim...`);
                 await new Promise(resolve => setTimeout(resolve, competitiveDelayMs));
 
-                // SINKRONISASI DETIK TERAKHIR (Anti-Race Condition) menggunakan cache lokal
-                let textToSend = regResult.replyText;
+                // Sinkronisasi detik terakhir menggunakan cache
                 if (cache.length > 0) {
-                    // Cari pesan terakhir sebelum kita mengirim (pesan di index terakhir atau sebelum terakhir jika index terakhir adalah pesan kita sendiri)
                     let lastCachedMsg = null;
                     for (let i = cache.length - 1; i >= 0; i--) {
                         if (cache[i].id !== msg.id._serialized) {
@@ -478,33 +604,49 @@ client.on('message_create', async (msg) => {
                     }
 
                     if (lastCachedMsg && parser.isShiftOpening(lastCachedMsg.body)) {
-                        logToDashboard('Sinkronisasi ulang pendaftar lain terdeteksi...');
-                        
-                        // Batal jika ternyata nama kita sudah dimasukkan oleh orang lain
-                        if (parser.isUserAlreadyRegistered(lastCachedMsg.body, config.userName, config.userOptId)) {
-                            logToDashboard('Batal kirim: Sudah didaftarkan oleh pendaftar lain.');
-                            return;
-                        }
-
-                        // Susun ulang teks pendaftaran berdasarkan pesan terbaru tersebut
-                        const syncReplyText = parser.registerUserInTemplate(lastCachedMsg.body, config.userName, config.userOptId);
-                        if (syncReplyText) {
-                            textToSend = syncReplyText;
+                        logToDashboard('[Akun 1] Sinkronisasi ulang pendaftar lain terdeteksi...');
+                        if (parser.isUserAlreadyRegistered(lastCachedMsg.body, config.user1.name, config.user1.optId)) {
+                            logToDashboard('[Akun 1] Batal kirim: Sudah didaftarkan oleh pendaftar lain.');
+                            textToSend1 = null;
+                        } else {
+                            const syncReplyText = parser.registerUserInTemplate(lastCachedMsg.body, config.user1.name, config.user1.optId);
+                            if (syncReplyText) {
+                                textToSend1 = syncReplyText;
+                            }
                         }
                     }
                 }
 
-                // Kirim pesan pendaftaran otomatis jika mode otomatis aktif
-                if (isAutoSendEnabled) {
-                    // Balas pesan ke grup secara otomatis dengan template terisi (BR-004 & BR-006)
-                    await client.sendMessage(msg.from, textToSend);
-                    logToDashboard('Pesan pendaftaran berhasil terkirim ke grup!');
+                if (textToSend1) {
+                    if (isAutoSendEnabled) {
+                        try {
+                            await client1.sendMessage(msg.from, textToSend1);
+                            logToDashboard('[Akun 1] Pesan pendaftaran terkirim!');
+                            user1Sent = true;
+                            clearTimeout(safetyTimeout);
+                            
+                            // Pemicu pendaftaran Akun 2 berurutan secara terkoordinasi
+                            await triggerAccount2Registration(textToSend1, msg.from);
+                        } catch (err) {
+                            logToDashboard(`[Akun 1] Gagal mengirim chat: ${err.message}`);
+                        }
+                    } else {
+                        logToDashboard('[Akun 1] Pendaftaran terdeteksi (Mode Pantau Saja).');
+                        user1Sent = true;
+                        clearTimeout(safetyTimeout);
+                        await triggerAccount2Registration(textToSend1, msg.from);
+                    }
                 } else {
-                    logToDashboard('Pendaftaran dibunyikan (Mode Pantau Saja).');
+                    // Akun 1 batal/tidak mendaftar, trigger Akun 2 dari teks asli
+                    clearTimeout(safetyTimeout);
+                    await triggerAccount2Registration(messageText, msg.from);
                 }
             } else {
-                logToDashboard(`Dilewati: ${regResult.message}`);
-                historyLogger.logEvent('SKIP', `Pendaftaran dilewati karena: ${regResult.message}`);
+                logToDashboard(`[Akun 1] Dilewati: ${regResult1.message}`);
+                clearTimeout(safetyTimeout);
+                
+                // Trigger Akun 2 langsung
+                await triggerAccount2Registration(messageText, msg.from);
             }
             return;
         }
@@ -534,13 +676,22 @@ client.on('message_create', async (msg) => {
         if (shouldVerify) {
             logToDashboard('Hasil verifikasi/seleksi terdeteksi!');
             
-            // Proses verifikasi secara sinkron menggunakan cache lokal & quotedText
-            const verResult = verification.processVerification(messageText, cache, quotedText);
-            
-            if (verResult.processed) {
-                logToDashboard(`Status terupdate menjadi: [${verResult.status}]. Alasan: ${verResult.reason}`);
+            // Verifikasi Akun 1
+            const verResult1 = verification.processVerification(messageText, cache, quotedText, 'user1');
+            if (verResult1.processed) {
+                logToDashboard(`[Akun 1] Status terupdate menjadi: [${verResult1.status}]. Alasan: ${verResult1.reason}`);
             } else {
-                logToDashboard(`Verifikasi dilewati: ${verResult.reason}`);
+                logToDashboard(`[Akun 1] Verifikasi dilewati: ${verResult1.reason}`);
+            }
+            
+            // Verifikasi Akun 2 jika terdaftar
+            if (config.user2.name) {
+                const verResult2 = verification.processVerification(messageText, cache, quotedText, 'user2');
+                if (verResult2.processed) {
+                    logToDashboard(`[Akun 2] Status terupdate menjadi: [${verResult2.status}]. Alasan: ${verResult2.reason}`);
+                } else {
+                    logToDashboard(`[Akun 2] Verifikasi dilewati: ${verResult2.reason}`);
+                }
             }
             return;
         }
@@ -597,9 +748,9 @@ function saveToEnv(key, value) {
         envContent = fs.readFileSync(envPath, 'utf8');
     }
 
-    // Pembersihan nomor HP agar fleksibel (bisa 08 atau 628)
+    // Pembersihan nomor HP agar fleksibel
     let processedValue = value;
-    if (key === 'USER_HP') {
+    if (key === 'USER_HP' || key === 'USER1_HP' || key === 'USER2_HP') {
         processedValue = processedValue.replace(/[^0-9]/g, '');
         if (processedValue.startsWith('0')) {
             processedValue = '62' + processedValue.slice(1);
@@ -625,11 +776,21 @@ function saveToEnv(key, value) {
     fs.writeFileSync(envPath, lines.join('\n'), 'utf8');
     
     // Sinkronisasi nilai ke variabel RAM konfigurasi secara instan
-    if (key === 'USER_NAME') config.userName = processedValue;
-    else if (key === 'USER_OPT_ID') config.userOptId = processedValue;
-    else if (key === 'USER_HP') config.userHp = processedValue;
-    else if (key === 'TARGET_GROUP_NAME') config.targetGroupName = processedValue;
-    else if (key === 'MONITORED_ADMINS') {
+    if (key === 'USER_NAME' || key === 'USER1_NAME') {
+        config.userName = processedValue;
+    } else if (key === 'USER_OPT_ID' || key === 'USER1_OPT_ID') {
+        config.userOptId = processedValue;
+    } else if (key === 'USER_HP' || key === 'USER1_HP') {
+        config.userHp = processedValue;
+    } else if (key === 'USER2_NAME') {
+        config.user2.name = processedValue;
+    } else if (key === 'USER2_OPT_ID') {
+        config.user2.optId = processedValue;
+    } else if (key === 'USER2_HP') {
+        config.user2.hp = processedValue;
+    } else if (key === 'TARGET_GROUP_NAME') {
+        config.targetGroupName = processedValue;
+    } else if (key === 'MONITORED_ADMINS') {
         config.monitoredAdmins = processedValue
             .split(',')
             .map(admin => admin.trim())
@@ -642,7 +803,6 @@ function saveToEnv(key, value) {
                 return clean.includes('@') ? clean : `${clean}@c.us`;
             });
     }
-
 }
 
 /**
@@ -904,22 +1064,23 @@ async function showConfigMenu() {
     while (true) {
         console.clear();
         console.log('\n==================================================');
-        console.log('              SUB-MENU PENGATURAN BOT');
+        console.log('              SUB-MENU PENGATURAN BOT DUAL-AKUN');
         console.log('==================================================');
-        console.log(`1. Ubah Nama Pengguna      [${config.userName || '(Kosong)'}]`);
-        console.log(`2. Ubah OPT ID             [${config.userOptId || '(Kosong)'}]`);
-        console.log(`3. Ubah Nomor HP Anda      [${config.userHp || '(Kosong)'}]`);
-        console.log(`4. Ubah Nama Grup WA       [${config.targetGroupName || '(Kosong)'}]`);
-        console.log(`5. Rekam ID Admin Otomatis`);
-        const adminsString = config.monitoredAdmins.map(a => a.split('@')[0]).join(',');
-        console.log(`6. Ubah Nomor HP Admin     [${adminsString || '(Kosong)'}]`);
-        console.log('7. Kembali ke Menu Utama');
+        console.log(`1. Nama Akun 1         [${config.user1.name || '(Kosong)'}]`);
+        console.log(`2. OPT ID Akun 1       [${config.user1.optId || '(Kosong)'}]`);
+        console.log(`3. No HP Akun 1        [${config.user1.hp || '(Kosong)'}]`);
+        console.log(`4. Nama Akun 2         [${config.user2.name || '(Kosong)'}]`);
+        console.log(`5. OPT ID Akun 2       [${config.user2.optId || '(Kosong)'}]`);
+        console.log(`6. No HP Akun 2        [${config.user2.hp || '(Kosong)'}]`);
+        console.log(`7. Nama Grup WA        [${config.targetGroupName || '(Kosong)'}]`);
+        console.log('8. Rekam ID Admin Otomatis (Wizard)');
+        console.log('9. Kembali ke Menu Utama');
         console.log('==================================================');
 
-        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-7): ');
+        const choice = await askQuestion('Pilih setelan yang ingin diubah (1-9): ');
         const trimmed = choice.trim();
 
-        if (trimmed === '7') {
+        if (trimmed === '9') {
             break;
         }
 
@@ -928,28 +1089,36 @@ async function showConfigMenu() {
 
         switch (trimmed) {
             case '1':
-                key = 'USER_NAME';
-                promptText = `Masukkan Nama Pengguna baru [Saat ini: ${config.userName}]: `;
+                key = 'USER1_NAME';
+                promptText = `Masukkan Nama Pengguna Akun 1 [Saat ini: ${config.user1.name}]: `;
                 break;
             case '2':
-                key = 'USER_OPT_ID';
-                promptText = `Masukkan OPT ID baru [Saat ini: ${config.userOptId}]: `;
+                key = 'USER1_OPT_ID';
+                promptText = `Masukkan OPT ID Akun 1 [Saat ini: ${config.user1.optId}]: `;
                 break;
             case '3':
-                key = 'USER_HP';
-                promptText = `Masukkan Nomor HP Anda (untuk Pairing Code) [Saat ini: ${config.userHp}]: `;
+                key = 'USER1_HP';
+                promptText = `Masukkan Nomor HP Akun 1 [Saat ini: ${config.user1.hp}]: `;
                 break;
             case '4':
+                key = 'USER2_NAME';
+                promptText = `Masukkan Nama Pengguna Akun 2 [Saat ini: ${config.user2.name}]: `;
+                break;
+            case '5':
+                key = 'USER2_OPT_ID';
+                promptText = `Masukkan OPT ID Akun 2 [Saat ini: ${config.user2.optId}]: `;
+                break;
+            case '6':
+                key = 'USER2_HP';
+                promptText = `Masukkan Nomor HP Akun 2 [Saat ini: ${config.user2.hp}]: `;
+                break;
+            case '7':
                 key = 'TARGET_GROUP_NAME';
                 promptText = `Masukkan Nama Grup WA Target [Saat ini: ${config.targetGroupName}]: `;
                 break;
-            case '5':
+            case '8':
                 await recordAdminJidWizard();
                 continue;
-            case '6':
-                key = 'MONITORED_ADMINS';
-                promptText = `Masukkan Daftar HP Admin (pisahkan koma) [Saat ini: ${adminsString}]: `;
-                break;
             default:
                 console.log('[ERROR] Pilihan tidak valid.');
                 await askQuestion('\nTekan ENTER untuk melanjutkan...');
@@ -1034,15 +1203,17 @@ async function startSystem() {
             await showConfigMenu();
         } else if (trimmed === '1') {
             // Cek kelengkapan konfigurasi minimal sebelum memulai bot
-            if (!config.userName || !config.userOptId || !config.targetGroupName) {
-                console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Anda terlebih dahulu di Menu 2.');
+            if (!config.user1.name || !config.user1.optId || !config.targetGroupName) {
+                console.log('\n[PERINGATAN] Konfigurasi belum lengkap! Silakan atur profil Akun 1 Anda terlebih dahulu di Menu 2.');
                 await askQuestion('\nTekan ENTER untuk kembali ke Menu Utama...');
                 continue;
             }
 
             console.clear();
             console.log('\n[SYSTEM] Menginisialisasi koneksi WhatsApp Web...');
-            client.initialize();
+            client1.initialize().catch(err => {
+                console.error('[ERROR] Gagal menginisialisasi client 1:', err);
+            });
             break; // Keluar dari menu loop karena client sedang berjalan
         } else {
             console.log('[ERROR] Pilihan tidak valid.');

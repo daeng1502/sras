@@ -32,15 +32,20 @@ function isVerificationMessage(text) {
  * @param {string|null} quotedText - Teks pesan yang direply oleh admin
  * @returns {Object} - { processed: boolean, status: string|null, reason: string }
  */
-function processVerification(text, cache = null, quotedText = null) {
+function processVerification(text, cache = null, quotedText = null, userKey = 'user1') {
     const store = storeManager.readStore();
+    const userState = store[userKey] || {
+        status: store.status || 'NULL',
+        lastShiftDate: store.lastShiftDate || null,
+        registeredShiftId: store.registeredShiftId || null
+    };
     
     // Hanya memproses verifikasi jika status pengguna saat ini sedang menunggu verifikasi
-    if (store.status !== 'WAITING_VERIFICATION') {
+    if (userState.status !== 'WAITING_VERIFICATION') {
         return {
             processed: false,
             status: null,
-            reason: 'Sistem mengabaikan pesan verifikasi karena pengguna tidak sedang dalam status WAITING_VERIFICATION.'
+            reason: `[${userKey}] Sistem mengabaikan pesan verifikasi karena pengguna tidak sedang dalam status WAITING_VERIFICATION.`
         };
     }
 
@@ -52,8 +57,9 @@ function processVerification(text, cache = null, quotedText = null) {
         };
     }
 
-    const cleanUserName = config.userName.toLowerCase().trim();
-    const cleanOptId = config.userOptId.toLowerCase().trim();
+    const userCfg = config[userKey];
+    const cleanUserName = (userCfg && userCfg.name ? userCfg.name.toLowerCase().trim() : config.userName.toLowerCase().trim());
+    const cleanOptId = (userCfg && userCfg.optId ? userCfg.optId.toLowerCase().trim() : config.userOptId.toLowerCase().trim());
 
     let textToAnalyze = text;
     const lowerText = text.toLowerCase().trim();
@@ -102,9 +108,7 @@ function processVerification(text, cache = null, quotedText = null) {
     const lowerTextToAnalyze = textToAnalyze.toLowerCase();
 
     historyLogger.logEvent('VERIFY-DEBUG', `Teks analisis (panjang: ${textToAnalyze.length}): ${textToAnalyze.replace(/\n/g, ' ')}`);
-    historyLogger.logEvent('VERIFY-DEBUG', `Mencari username: "${cleanUserName}" | OPT ID: "${cleanOptId}"`);
-
-
+    historyLogger.logEvent('VERIFY-DEBUG', `[${userKey}] Mencari username: "${cleanUserName}" | OPT ID: "${cleanOptId}"`);
 
     let newStatus = null;
     let logMessage = '';
@@ -116,7 +120,6 @@ function processVerification(text, cache = null, quotedText = null) {
     // Cek keberadaan nama/ID pengguna di dalam teks yang dianalisis
     const isNameInText = lowerTextToAnalyze.includes(cleanUserName) || lowerTextToAnalyze.includes(cleanOptId);
     historyLogger.logEvent('VERIFY-DEBUG', `Hasil pencarian nama: ${isNameInText}`);
-
 
     if (isNameInText) {
         if (hasAcceptedSection && hasRejectedSection) {
@@ -161,14 +164,19 @@ function processVerification(text, cache = null, quotedText = null) {
 
     if (newStatus) {
         const todayStr = new Date().toISOString().split('T')[0];
-        storeManager.updateStatus(newStatus, null, todayStr);
+        if (userKey === 'user1') {
+            storeManager.updateStatus(newStatus, null, todayStr);
+        } else {
+            storeManager.updateStatus(userKey, newStatus, null, todayStr);
+        }
         
         // Memicu alarm suara jika pengguna telah resmi DITERIMA (ACCEPTED) kerja
         if (newStatus === 'ACCEPTED') {
-            alarm.triggerAlarm('ACCEPTED', store.registeredShiftId || 'Shift Anda');
+            const currentShiftName = userState.registeredShiftId || 'Shift Anda';
+            alarm.triggerAlarm('ACCEPTED', currentShiftName);
         }
 
-        historyLogger.logEvent('VERIFY', `Verifikasi selesai: status diubah menjadi ${newStatus}. Detail: ${logMessage} (Analisis textToAnalyze: "${textToAnalyze.replace(/\n/g, ' ')}", userName: "${cleanUserName}", optId: "${cleanOptId}", isNameInText: ${isNameInText})`);
+        historyLogger.logEvent('VERIFY', `[${userKey}] Verifikasi selesai: status diubah menjadi ${newStatus}. Detail: ${logMessage} (Analisis textToAnalyze: "${textToAnalyze.replace(/\n/g, ' ')}", userName: "${cleanUserName}", optId: "${cleanOptId}", isNameInText: ${isNameInText})`);
         return {
             processed: true,
             status: newStatus,
@@ -179,7 +187,7 @@ function processVerification(text, cache = null, quotedText = null) {
     return {
         processed: false,
         status: null,
-        reason: 'Nama pengguna tidak terdeteksi secara eksplisit dan format pengumuman tidak tergolong daftar final.'
+        reason: `[${userKey}] Nama pengguna tidak terdeteksi secara eksplisit dan format pengumuman tidak tergolong daftar final.`
     };
 }
 

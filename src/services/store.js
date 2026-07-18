@@ -3,9 +3,22 @@ const path = require('path');
 const config = require('../config');
 
 const defaultStore = {
-    status: 'NULL', // NULL, WAITING_VERIFICATION, ACCEPTED, REJECTED
-    lastShiftDate: null, // YYYY-MM-DD
-    registeredShiftId: null // ID/Nama shift terakhir
+    // Kompatibilitas Mundur (Single-User fallback)
+    status: 'NULL',
+    lastShiftDate: null,
+    registeredShiftId: null,
+
+    // Multi-Akun
+    user1: {
+        status: 'NULL',
+        lastShiftDate: null,
+        registeredShiftId: null
+    },
+    user2: {
+        status: 'NULL',
+        lastShiftDate: null,
+        registeredShiftId: null
+    }
 };
 
 // Pastikan direktori database ada
@@ -21,7 +34,13 @@ function readStore() {
             return defaultStore;
         }
         const data = fs.readFileSync(config.storePath, 'utf8');
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        
+        // Garansi struktur multi-akun ada
+        if (!parsed.user1) parsed.user1 = { status: parsed.status || 'NULL', lastShiftDate: parsed.lastShiftDate || null, registeredShiftId: parsed.registeredShiftId || null };
+        if (!parsed.user2) parsed.user2 = { status: 'NULL', lastShiftDate: null, registeredShiftId: null };
+        
+        return parsed;
     } catch (error) {
         console.error('Gagal membaca store.json, menggunakan data default:', error.message);
         return defaultStore;
@@ -30,6 +49,12 @@ function readStore() {
 
 function writeStore(data) {
     try {
+        // Sinkronisasi data user1 ke top-level untuk kompatibilitas mundur
+        if (data.user1) {
+            data.status = data.user1.status;
+            data.lastShiftDate = data.user1.lastShiftDate;
+            data.registeredShiftId = data.user1.registeredShiftId;
+        }
         fs.writeFileSync(config.storePath, JSON.stringify(data, null, 2), 'utf8');
         return true;
     } catch (error) {
@@ -38,17 +63,37 @@ function writeStore(data) {
     }
 }
 
-function updateStatus(status, shiftId = null, dateStr = null) {
-    const store = readStore();
-    store.status = status;
-    if (shiftId !== null) {
-        store.registeredShiftId = shiftId;
+function updateStatus(userKey, status, shiftId = null, dateStr = null) {
+    let actualUserKey = userKey;
+    let actualStatus = status;
+    let actualShiftId = shiftId;
+    let actualDateStr = dateStr;
+
+    // Deteksi tanda parameter backward compatible: jika userKey bukan 'user1' atau 'user2', maka asumsikan single-user (user1)
+    if (userKey !== 'user1' && userKey !== 'user2') {
+        actualUserKey = 'user1';
+        actualStatus = userKey;
+        actualShiftId = status;
+        actualDateStr = shiftId;
     }
-    if (dateStr !== null) {
-        store.lastShiftDate = dateStr;
-    } else if (status === 'ACCEPTED' || status === 'WAITING_VERIFICATION') {
-        // Default ke hari ini jika tidak dispesifikasikan
-        store.lastShiftDate = new Date().toISOString().split('T')[0];
+
+    const store = readStore();
+    if (!store[actualUserKey]) {
+        store[actualUserKey] = {
+            status: 'NULL',
+            lastShiftDate: null,
+            registeredShiftId: null
+        };
+    }
+    
+    store[actualUserKey].status = actualStatus;
+    if (actualShiftId !== null) {
+        store[actualUserKey].registeredShiftId = actualShiftId;
+    }
+    if (actualDateStr !== null) {
+        store[actualUserKey].lastShiftDate = actualDateStr;
+    } else if (actualStatus === 'ACCEPTED' || actualStatus === 'WAITING_VERIFICATION') {
+        store[actualUserKey].lastShiftDate = new Date().toISOString().split('T')[0];
     }
     return writeStore(store);
 }

@@ -5,19 +5,33 @@ const storeManager = require('./store');
  * @param {string} targetDate - Tanggal target pengecekan (default: hari ini, format YYYY-MM-DD)
  * @returns {Object} - { eligible: boolean, reason: string }
  */
-function checkEligibility(targetDate = null) {
+function checkEligibility(userKey = 'user1', targetDate = null) {
+    let actualUserKey = userKey;
+    let actualTargetDate = targetDate;
+    
+    // Kompatibilitas mundur: jika argument pertama bukan 'user1' atau 'user2', asumsikan itu adalah targetDate
+    if (userKey !== 'user1' && userKey !== 'user2') {
+        actualUserKey = 'user1';
+        actualTargetDate = userKey;
+    }
+
     const store = storeManager.readStore();
-    const today = targetDate || new Date().toISOString().split('T')[0];
+    const today = actualTargetDate || new Date().toISOString().split('T')[0];
+    const userState = store[actualUserKey] || {
+        status: store.status || 'NULL',
+        lastShiftDate: store.lastShiftDate || null,
+        registeredShiftId: store.registeredShiftId || null
+    };
 
     // Jika data tanggal status berbeda dengan tanggal hari ini, status lama dianggap kedaluwarsa (reset)
-    if (store.lastShiftDate && store.lastShiftDate !== today) {
+    if (userState.lastShiftDate && userState.lastShiftDate !== today) {
         return {
             eligible: true,
             reason: 'Eligible: Status hari sebelumnya telah kedaluwarsa.'
         };
     }
 
-    switch (store.status) {
+    switch (userState.status) {
         case 'ACCEPTED':
             return {
                 eligible: false,

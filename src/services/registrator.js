@@ -10,9 +10,9 @@ const alarm = require('./alarm');
  * @param {string} incomingMessageText - Pesan asli berisi daftar dari admin
  * @returns {Object} - { success: boolean, message: string, replyText: string|null }
  */
-function processRegistration(incomingMessageText) {
+function processRegistration(incomingMessageText, userKey = 'user1') {
     // 1. Cek kelayakan pengguna berdasarkan state status saat ini
-    const eligibilityCheck = eligibility.checkEligibility();
+    const eligibilityCheck = eligibility.checkEligibility(userKey);
     if (!eligibilityCheck.eligible) {
         return {
             success: false,
@@ -21,19 +21,32 @@ function processRegistration(incomingMessageText) {
         };
     }
 
+    const userCfg = config[userKey];
+    if (!userCfg || !userCfg.name || !userCfg.optId) {
+        return {
+            success: false,
+            message: `Konfigurasi akun [${userKey}] belum lengkap!`,
+            replyText: null
+        };
+    }
+
     // 2. Cek apakah pengguna sudah terdaftar di daftar pesan tersebut
     const alreadyRegistered = parser.isUserAlreadyRegistered(
         incomingMessageText,
-        config.userName,
-        config.userOptId
+        userCfg.name,
+        userCfg.optId
     );
     if (alreadyRegistered) {
         const shiftTitle = parser.extractShiftTitle(incomingMessageText);
         const todayStr = new Date().toISOString().split('T')[0];
-        storeManager.updateStatus('WAITING_VERIFICATION', shiftTitle, todayStr);
+        if (userKey === 'user1') {
+            storeManager.updateStatus('WAITING_VERIFICATION', shiftTitle, todayStr);
+        } else {
+            storeManager.updateStatus(userKey, 'WAITING_VERIFICATION', shiftTitle, todayStr);
+        }
         
         alarm.triggerAlarm('REGISTER', shiftTitle);
-        historyLogger.logEvent('REGISTER', `Nama sudah terdaftar pada shift "${shiftTitle}". Masuk ke status WAITING_VERIFICATION.`);
+        historyLogger.logEvent('REGISTER', `[${userKey}] Nama sudah terdaftar pada shift "${shiftTitle}". Masuk ke status WAITING_VERIFICATION.`);
 
         return {
             success: true,
@@ -45,8 +58,8 @@ function processRegistration(incomingMessageText) {
     // 3. Masukkan pengguna ke dalam template list admin
     const replyText = parser.registerUserInTemplate(
         incomingMessageText,
-        config.userName,
-        config.userOptId
+        userCfg.name,
+        userCfg.optId
     );
 
     if (!replyText) {
@@ -60,13 +73,17 @@ function processRegistration(incomingMessageText) {
     // 4. Sukses! Update status kelayakan di database lokal menjadi WAITING_VERIFICATION
     const shiftTitle = parser.extractShiftTitle(incomingMessageText);
     const todayStr = new Date().toISOString().split('T')[0];
-    storeManager.updateStatus('WAITING_VERIFICATION', shiftTitle, todayStr);
+    if (userKey === 'user1') {
+        storeManager.updateStatus('WAITING_VERIFICATION', shiftTitle, todayStr);
+    } else {
+        storeManager.updateStatus(userKey, 'WAITING_VERIFICATION', shiftTitle, todayStr);
+    }
 
     // Memicu alarm suara laptop & webhook IFTTT HP secara fisik
     alarm.triggerAlarm('REGISTER', shiftTitle);
 
     // 5. Catat riwayat pendaftaran ke log history
-    historyLogger.logEvent('REGISTER', `Mendaftar pada shift "${shiftTitle}" dengan nomor urut baru.`);
+    historyLogger.logEvent('REGISTER', `[${userKey}] Mendaftar pada shift "${shiftTitle}" dengan nomor urut baru.`);
 
     return {
         success: true,
