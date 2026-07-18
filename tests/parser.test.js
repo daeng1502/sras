@@ -60,6 +60,11 @@ describe('Parser Service Tests', () => {
             const msg = `Dear Team\nProvide DW JABODETABEK\n11.00 : 2 orang`;
             expect(parser.isShiftOpening(msg)).toBe(true);
         });
+
+        test('harus mendeteksi pembukaan shift jika admin mengirim format minimalis seperti 00.00 : 5 orang', () => {
+            const msg = `00.00 : 5 orang\n1.\n2.`;
+            expect(parser.isShiftOpening(msg)).toBe(true);
+        });
     });
 
     describe('isUserAlreadyRegistered', () => {

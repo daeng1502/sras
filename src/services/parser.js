@@ -7,23 +7,19 @@ const config = require('../config');
  */
 function getQuotaFromLine(line) {
     if (!line) return null;
-    const lowerLine = line.toLowerCase();
     
-    // Pola 1: Format waktu diikuti angka kuota, misal "09.00 : 5" atau "09:00 : 5 orang"
-    const timeQuotaMatch = line.match(/(?:\d{2}[.:]\d{2})\s*:\s*(\d+)/);
+    // Pola 1: Format waktu (dengan timezone opsional) diikuti colon dan angka kuota, misal "09.00 WIB : 5" atau "09:00 : 5 orang"
+    const timeQuotaMatch = line.match(/(?:\d{2}[.:]\d{2})\s*(?:wib|wita|wit)?\s*:\s*(\d+)/i);
     if (timeQuotaMatch) {
         return parseInt(timeQuotaMatch[1], 10);
     }
     
-    // Pola 2: Mengandung kata kunci kuota, misal "butuh 5 orang", "5 pax", "5 slots"
-    const keywords = ['orang', 'org', 'pax', 'person', 'slot', 'butuh', 'kebutuhan'];
-    const hasKeyword = keywords.some(kw => lowerLine.includes(kw));
-    if (hasKeyword) {
-        const numMatch = line.match(/\b(\d+)\b/);
-        if (numMatch) {
-            return parseInt(numMatch[1], 10);
-        }
+    // Pola 2: Mengandung angka diikuti kata kunci kuota, misal "butuh 5 orang", "5 pax", "5 slots"
+    const keywordQuotaMatch = line.match(/(\d+)\s*(?:orang|org|pax|person|slot|slots|orgs|paxs)/i);
+    if (keywordQuotaMatch) {
+        return parseInt(keywordQuotaMatch[1], 10);
     }
+    
     return null;
 }
 
@@ -107,7 +103,7 @@ function isShiftOpening(text) {
     if (!text) return false;
     const lowerText = text.toLowerCase();
     
-    // 1. Validasi Kata Kunci Utama (Termasuk format admin baru: DW, provide, vendor, soc, pds, psd)
+    // 1. Validasi Kata Kunci Utama
     const hasKeywords = lowerText.includes('shift') || 
                         lowerText.includes('daftar') || 
                         lowerText.includes('list') ||
@@ -118,7 +114,11 @@ function isShiftOpening(text) {
                         lowerText.includes('vendor') ||
                         lowerText.includes('soc') ||
                         lowerText.includes('pds') ||
-                        lowerText.includes('psd');
+                        lowerText.includes('psd') ||
+                        lowerText.includes('orang') ||
+                        lowerText.includes('org') ||
+                        lowerText.includes('pax') ||
+                        /\d{2}[.:]\d{2}/.test(text);
                         
     if (!hasKeywords) return false;
 
