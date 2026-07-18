@@ -177,7 +177,7 @@ function logToDashboard(message) {
 function redrawDashboard() {
     const store = storeManager.readStore();
     const currentStatus = store.status || 'ELIGIBLE';
-    const currentShift = store.shiftTitle || 'Belum Ada';
+    const currentShift = store.registeredShiftId || 'Belum Ada';
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const timeStr = new Date().toLocaleTimeString('id-ID', { hour12: false });
     
