@@ -43,25 +43,26 @@ Dengan menggabungkan kecepatan respons tingkat milidetik, kecerdasan buatan dala
 ```mermaid
 flowchart TD
     A[Mulai Pemantauan Chat Grup] --> B{Apakah Pesan dari Admin?}
-    B -- Tidak --> A
-    B -- Ya --> C{Apakah Pesan Pembukaan Shift?}
+    B -->|Tidak| A
+    B -->|Ya| C{Apakah Pesan Pembukaan Shift?}
     
-    C -- Ya --> D{Apakah User Layak? <br/>Status: NULL / REJECTED}
-    D -- Tidak (Status: WAITING / ACCEPTED) --> A
-    D -- Ya --> E{Apakah Nama Sudah Terdaftar di List?}
-    E -- Ya --> F[Set Status: WAITING_VERIFICATION] --> A
-    E -- Tidak --> G[Ambil List Terakhir & Sisipkan Nama + OPT ID]
+    C -->|Ya| D{Apakah User Layak? <br/>Status: NULL / REJECTED}
+    D -->|Tidak Layak| A
+    D -->|Ya| E{Apakah Nama Sudah Terdaftar di List?}
+    E -->|Ya| F[Set Status: WAITING_VERIFICATION]
+    F --> A
+    E -->|Tidak| G[Ambil List Terakhir & Sisipkan Nama + OPT ID]
     G --> H[Simulasi Ketik 1-1.8 Detik]
     H --> I[Kirim Pendaftaran ke Grup & Bunyikan Alarm]
     I --> F
     
-    C -- Tidak --> J{Apakah Pesan Pengumuman Hasil Seleksi / Done?}
-    J -- Ya (Status: WAITING_VERIFICATION) --> K{Apakah Nama User Ada di List Hasil / Reply?}
-    K -- Ya --> L[Ubah Status: ACCEPTED & Bunyikan Alarm Diterima]
-    K -- Tidak --> M[Ubah Status: REJECTED - Siap Cari Shift Baru]
+    C -->|Tidak| J{Apakah Pesan Pengumuman Hasil Seleksi / Done?}
+    J -->|Ya| K{Apakah Nama User Ada di List Hasil / Reply?}
+    K -->|Ya| L[Ubah Status: ACCEPTED & Bunyikan Alarm Diterima]
+    K -->|Tidak| M[Ubah Status: REJECTED - Siap Cari Shift Baru]
     L --> A
     M --> A
-    J -- Tidak --> A
+    J -->|Tidak| A
 ```
 
 ---
