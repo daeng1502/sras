@@ -1,3 +1,31 @@
+const puppeteer = require('puppeteer');
+const originalLaunch = puppeteer.launch;
+puppeteer.launch = async function(options) {
+    const browser = await originalLaunch.call(puppeteer, options);
+    browser.on('targetcreated', async (target) => {
+        if (target.type() === 'page') {
+            const page = await target.page();
+            if (page) {
+                try {
+                    await page.setRequestInterception(true);
+                    page.on('request', (req) => {
+                        const resourceType = req.resourceType();
+                        if (['image', 'media', 'font'].includes(resourceType)) {
+                            req.abort();
+                        } else {
+                            req.continue();
+                        }
+                    });
+                } catch (err) {
+                    // Abaikan jika halaman sudah tertutup saat interseptor dipasang
+                }
+            }
+        }
+    });
+    return browser;
+};
+console.log('[SYSTEM-PUPPETEER] Pemblokiran media (gambar/video/font) aktif untuk menghemat kuota internet.');
+
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const readline = require('readline');
