@@ -244,10 +244,17 @@ function isUserAlreadyRegistered(text, name, optId) {
  */
 function extractShiftTitle(text) {
     if (!text) return 'Shift Tidak Dikenal';
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     
+    // Gunakan pencarian blok pendaftaran untuk menemukan header shift secara presisi
+    const blocks = getBlocks(text);
+    const validBlock = blocks.find(b => b.headerIndex !== -1);
+    if (validBlock) {
+        return validBlock.headerText.trim();
+    }
+    
+    // Fallback jika tidak ditemukan blok ber-header (menggunakan logika baris non-list)
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     const skipKeywords = ['dear team', 'dear all', 'dear team,', 'dear all,', 'hallo team', 'hallo all', 'dear', 'team'];
-    // Cari baris pertama yang tidak dimulai dengan angka pendaftaran (misal "1.") dan bukan baris salam
     for (let line of lines) {
         if (!/^\s*\d+\.\s*/.test(line)) {
             const cleanLine = line.toLowerCase().replace(/[,.:]/g, '').trim();
